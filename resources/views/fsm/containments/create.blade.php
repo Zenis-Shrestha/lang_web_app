@@ -8,7 +8,7 @@
 	<!-- /.card-header -->
 
     {{-- @include('errors.list') --}}
-    {!! Form::open([ 'action' => ['Fsm\ContainmentController@storeContainment', $id],'files' => true, 'class' => 'form-horizontal']) !!}
+    {!! Form::open([ 'action' => ['Fsm\ContainmentController@storeContainment', $building->public_id],'files' => true, 'class' => 'form-horizontal']) !!}
 		@include('fsm.containments.partial-form', ['submitButtomText' => 'Save'])
 	<div class="card-footer">
 

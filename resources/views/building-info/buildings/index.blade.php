@@ -3,6 +3,43 @@
 
 
 @section('content')
+    @if (!$piiListUnlocked && $canUnlockOwnerPiiList)
+        <div class="modal fade" id="reveal-owner-pii-list-modal" tabindex="-1" role="dialog"
+            aria-labelledby="reveal-owner-pii-list-title" aria-hidden="true">
+            <div class="modal-dialog" role="document">
+                <div class="modal-content">
+                    <form id="pii-list-unlock-form" method="POST" action="{{ route('owner-pii.unlock-list') }}">
+                        @csrf
+                        <div class="modal-header">
+                            <h5 class="modal-title" id="reveal-owner-pii-list-title">
+                                {{ __('Reveal All Owner PII') }}
+                            </h5>
+                            <button type="button" class="close" data-dismiss="modal" aria-label="{{ __('Close') }}">
+                                <span aria-hidden="true">&times;</span>
+                            </button>
+                        </div>
+                        <div class="modal-body">
+                            <p>
+                                {{ __('This will reveal owner names in the building data table.') }}
+                            </p>
+                            <p class="mb-0">
+                                {{ __('Access lasts five minutes and applies to the list and Building Details pages. Users with building-edit permission may also edit owner PII. Access will be recorded in the security audit log.') }}
+                            </p>
+                        </div>
+                        <div class="modal-footer">
+                            <button type="button" class="btn btn-secondary" data-dismiss="modal">
+                                {{ __('Cancel') }}
+                            </button>
+                            <button id="pii-list-unlock-submit" type="submit" class="btn btn-info">
+                                {{ __('Reveal for 5 Minutes') }}
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    @endif
+
     <div class="modal fade" id="containmentsModal" tabindex="-1" role="dialog" aria-labelledby="containmentsModalLabel"
         aria-hidden="true">
         <div class="modal-dialog modal-dialog-centered" role="document">
@@ -36,6 +73,24 @@
             @can('Export Building Structures')
                 <a href="#" id="export-kml" class="btn btn-info">{{ __('Export to KML') }}</a>
             @endcan
+
+            @if ($piiListUnlocked)
+                <form id="pii-list-lock-form" method="POST" action="{{ route('owner-pii.lock') }}"
+                    class="d-inline">
+                    @csrf
+                    <button type="submit" class="btn btn-warning">
+                        {{ __('Lock Owner PII') }}
+                    </button>
+                </form>
+                <span class="badge badge-success ml-1">
+                    {{ __('Owner PII revealed for this list') }}
+                </span>
+            @elseif ($canUnlockOwnerPiiList)
+                <button type="button" class="btn btn-info" data-toggle="modal"
+                    data-target="#reveal-owner-pii-list-modal">
+                    {{ __('View PII Information') }}
+                </button>
+            @endif
 
             <a href="#" class="btn btn-info float-right" id="headingOne" type="button" data-toggle="collapse"
                 data-target="#collapseOne" aria-expanded="true" aria-controls="collapseOne">
@@ -99,12 +154,15 @@
                                                     <option value="">{{ __('Use Category') }}</option>
                                                 </select>
                                             </div>
-                                            <label for="owner_name"
-                                                class="control-label col-md-2">{{ __('Owner Name') }}</label>
-                                            <div class="col-md-2">
-                                                <input type="text" class="form-control" id="owner_name"
-                                                    placeholder="{{ __('Owner Name') }}" />
-                                            </div>
+                                            @if ($piiListUnlocked)
+                                                <label for="owner_name"
+                                                    class="control-label col-md-2">{{ __('Owner Name') }}</label>
+                                                <div class="col-md-2">
+                                                    <input type="text" class="form-control" id="owner_name"
+                                                        maxlength="100" autocomplete="off"
+                                                        placeholder="{{ __('Owner Name') }}" />
+                                                </div>
+                                            @endif
                                         </div>
                                         <div class="form-group row">
                                             <label for="toilet"
@@ -244,14 +302,26 @@
         $.fn.dataTable.ext.errMode = 'throw';
         $(function() {
 
+            $('#pii-list-unlock-form').on('submit', function(e) {
+                var form = $(this);
+
+                if (form.data('submitting')) {
+                    e.preventDefault();
+                    return;
+                }
+
+                form.data('submitting', true);
+                $('#pii-list-unlock-submit')
+                    .prop('disabled', true)
+                    .text("{{ __('Revealing...') }}");
+            });
+
             var bin = '';
             var house_number = '';
             var structype = '';
             var ward = '';
             var functional_use = '';
             var roadcd = '';
-            var ownername = '';
-            var ownername = '';
             var sanitation_system_id = '';
             var floor_count = '';
 
@@ -277,7 +347,9 @@
                         d.toiletconn = $('#toiletconn').val();
                         d.watersourc = $('#watersourc').val();
                         d.well_prese = $('#well_prese').val();
-                        d.ownername = $('#owner_name').val();
+                        @if ($piiListUnlocked)
+                            d.ownername = $('#owner_name').val();
+                        @endif
                         d.sanitation_system_id = $('#sanitation_system_id').val();
                         d.floor_count = $('#floor_count').val();
                         d.date_from = $('#date_from').val();
@@ -322,7 +394,9 @@
                     },
                     {
                         data: 'owner_name',
-                        name: 'owner_name'
+                        name: 'owner_name',
+                        orderable: false,
+                        searchable: false
                     },
                     {
                         data: 'action',
@@ -355,6 +429,16 @@
             });
         });
 
+            @if ($piiListUnlocked && $piiListUnlockSeconds > 0)
+                window.setTimeout(function() {
+                    var lockForm = document.getElementById('pii-list-lock-form');
+
+                    if (lockForm) {
+                        lockForm.submit();
+                    }
+                }, {{ $piiListUnlockSeconds * 1000 }});
+            @endif
+
 
 
             $(".sidebar-toggle").on("click", function() {
@@ -366,8 +450,7 @@
                 house_number = '',
                 structype = '',
                 ward = '',
-                roadcd = '',
-                ownername = '';
+                roadcd = '';
             var toilet = '';
             var defecation = '';
             var toiletconn = '';
@@ -380,19 +463,6 @@
 
             $('#filter-form').on('submit', function(e) {
 
-                //commented this as there is no owner name validaiton in add / edit building form for now
-                // var ownernameO = $('#owner_name').val();
-                // ownernameO = ownernameO.trim().toLowerCase();
-                // var validO = /^[a-z][a-z\s]*$/.test(ownernameO);
-                // if (!validO && (ownernameO != '')) {
-                //     Swal.fire({
-                //         title: `Owner name should contain letters only!`,
-                //         icon: "warning",
-                //         button: "Close",
-                //         className: "custom-swal",
-                //     })
-                //     return false;
-                // }
                 var date_from = $('#date_from').val();
                 var date_to = $('#date_to').val();
 
@@ -432,7 +502,6 @@
                 ward = $('#ward_select').val();
                 functional_use = $('#functional_use_select').val();
                 roadcd = $('#road_code').val();
-                ownername = $('#owner_name').val();
                 toilet = $('#toilet').val();
                 watersourc = $('#watersourc').val();
                 well_prese = $('#well_prese').val();
@@ -476,7 +545,6 @@
                 var structype = $('#structype_select').val();
                 var ward = $('#ward_select').val();
                 var roadcd = $('#road_code').val();
-                var ownername = $('#owner_name').val();
                 var toilet = $('#toilet').val();
                 var watersourc = $('#watersourc').val();
                 var well_prese = $('#well_prese').val();
@@ -493,7 +561,6 @@
                     "&structype=" + structype +
                     "&ward=" + ward +
                     "&roadcd=" + roadcd +
-                    "&ownername=" + ownername +
                     "&toilet=" + toilet +
                     "&watersourc=" + watersourc +
                     "&well_prese=" + well_prese +
@@ -528,7 +595,6 @@
                 functional_use = $('#functional_use_select').val();
                 use_category_select = $('#functional_use_select').val();
                 roadcd = $('#road_code').val();
-                ownername = $('#owner_name').val();
                 toilet = $('#toilet').val();
                 defecation = $('#defecation').val();
                 toiletconn = $('#toiletconn').val();
@@ -557,9 +623,6 @@
                     cql_param += " AND road_code = '" + roadcd + "'";
                 }
 
-                if (ownername) {
-                    cql_param += " AND owner_name ILIKE '%" + ownername + "%'";
-                }
                 if (toilet) {
                     cql_param += " AND toilet_status = '" + toilet + "'";
                 }
