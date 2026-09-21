@@ -247,19 +247,35 @@ Developed By: Innovative Solution Pvt. Ltd. (ISPL)   -->
                 @endif
 
                 @if (Auth::user()->hasAnyPermission(
+                'List Schedule Desludging',
+                'List Schedule Reintegration',
                 'List Applications',
                 'List Emptyings',
                 'List Feedbacks',
                 'List Sludge Collections',
                 'List Help Desks') || Auth::user()->hasRole('Super Admin'))
-                <li class="nav-item  {{ request()->is('fsm/application/*', 'fsm/application','fsm/emptying', 'fsm/emptying/*','fsm/sludge-collection/*','fsm/sludge-collection', 'fsm/feedback/*','fsm/feedback', 'fsm/help-desks/*','fsm/help-desks') ? 'menu-is-opening menu-open' : '' }}">
-                    <a href="#" class="nav-link {{ request()->is('fsm/application/*', 'fsm/application','fsm/emptying', 'fsm/sludge-collection/*','fsm/sludge-collection', 'fsm/feedback/*','fsm/feedback', 'fsm/help-desks/*','fsm/help-desks') ? 'active subnav' : '' }}">
+                <li class="nav-item  {{ request()->is('fsm/desludging-schedule', 'fsm/desludging-schedule/*', 'fsm/desludging-reintegration', 'fsm/desludging-reintegration/*', 'fsm/application/*', 'fsm/application','fsm/emptying', 'fsm/emptying/*','fsm/sludge-collection/*','fsm/sludge-collection', 'fsm/feedback/*','fsm/feedback', 'fsm/help-desks/*','fsm/help-desks') ? 'menu-is-opening menu-open' : '' }}">
+                    <a href="#" class="nav-link {{ request()->is('fsm/desludging-schedule', 'fsm/desludging-schedule/*', 'fsm/desludging-reintegration', 'fsm/desludging-reintegration/*', 'fsm/application/*', 'fsm/application','fsm/emptying', 'fsm/sludge-collection/*','fsm/sludge-collection', 'fsm/feedback/*','fsm/feedback', 'fsm/help-desks/*','fsm/help-desks') ? 'active subnav' : '' }}">
                         <i class="nav-icon fa-regular fa-building"></i>
                         <p>
                             {{__('Emptying Service IMS')}} <i class="right fas fa-angle-left"></i>
                         </p>
                     </a>
                     <ul class="nav nav-treeview">
+                        @can('List Schedule Desludging')
+                            <li class="nav-item">
+                                <a href="{{ url('fsm/desludging-schedule') }}"
+                                class="nav-link {{ request()->is(
+                                    'fsm/desludging-schedule',
+                                    'fsm/desludging-schedule/*'
+                                ) ? 'active' : '' }}">
+
+                                    <i class="far fa-circle nav-icon"></i>
+
+                                    <p>{{ __('Desludging Schedule') }}</p>
+                                </a>
+                            </li>
+                        @endcan
                         @can('List Applications')
                         <li class="nav-item">
                             <a href="{{ route('application.index') }}" class="nav-link {{ request()->is('fsm/application/*','fsm/application') ? 'active' : '' }}">
@@ -291,6 +307,22 @@ Developed By: Innovative Solution Pvt. Ltd. (ISPL)   -->
                                 <p>{{__('Feedbacks')}}</p>
                             </a>
                         </li>
+                        @endcan
+                        @can('List Schedule Reintegration')
+                            <li class="nav-item">
+                                <a href="{{ route('desludging-reintegration.index') }}"
+                                class="nav-link {{ request()->is(
+                                    'fsm/desludging-reintegration',
+                                    'fsm/desludging-reintegration/*'
+                                ) ? 'active' : '' }}">
+                                    <i class="far fa-circle nav-icon"></i>
+                                    <p>
+                                        {{ __('Scheduled') }}<br>
+                                        {{ __('Desludging') }}<br>
+                                        {{ __('Reintegration') }}
+                                    </p>
+                                </a>
+                            </li>
                         @endcan
                         @can('List Help Desks')
                         <li class="nav-item">

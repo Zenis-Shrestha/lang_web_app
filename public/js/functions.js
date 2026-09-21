@@ -956,17 +956,23 @@ function onloadDynamicContainmentType() {
         const passwordError = document.getElementById('password-error');
         const confirmPasswordError = document.getElementById('confirm-password-error');
 
-        // Focus Events to Show Messages
-        passwordField.addEventListener('focus', () => passwordError.style.display = 'block');
-        confirmPasswordField.addEventListener('focus', () => confirmPasswordError.style.display = 'block');
+        if (passwordField && passwordError) {
+            passwordField.addEventListener('focus', () => passwordError.style.display = 'block');
+            passwordField.addEventListener('blur', () => passwordError.style.display = 'none');
+            passwordField.addEventListener('input', validatePassword);
+        }
 
-        // Blur Events to Hide Messages
-        passwordField.addEventListener('blur', () => passwordError.style.display = 'none');
-        confirmPasswordField.addEventListener('blur', () => confirmPasswordError.style.display = 'none');
-
-        // Input Validation for Password
-        passwordField.addEventListener('input', validatePassword);
-        confirmPasswordField.addEventListener('input', validateConfirmPassword);
+        if (confirmPasswordField && confirmPasswordError) {
+            confirmPasswordField.addEventListener(
+                'focus',
+                () => confirmPasswordError.style.display = 'block'
+            );
+            confirmPasswordField.addEventListener(
+                'blur',
+                () => confirmPasswordError.style.display = 'none'
+            );
+            confirmPasswordField.addEventListener('input', validateConfirmPassword);
+        }
 
         // Validation Logic
         function validatePassword() {

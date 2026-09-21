@@ -28,6 +28,8 @@ Contents
 
 [4.2.1 Service Providers](#service-providers)
 
+[Service Provider Wards](#service-provider-wards)
+
 [4.2.2 Employee Information](#employee-information)
 
 [4.2.3 Desludging Vehicles Information](#desludging-vehicles-information)
@@ -41,6 +43,8 @@ Contents
 [4.3.3 Performance Efficiency Test](#performance-efficiency-test)
 
 [4.4 Emptying Service IMS](#emptying-service-ims)
+
+[Scheduled Desludging Schedule](#scheduled-desludging-schedule)
 
 [4.4.1 Application](#application)
 
@@ -566,11 +570,13 @@ The Fecal Sludge Information Management System Module uses the following tables:
 
 -   containments: stores the containment information.
 -   service_providers: stores information of the service providers that provide emptying services.
+-   service_provider_wards: stores the wards covered by each service provider for scheduled desludging.
 -   employees: stores employee information associated with the registered service providers.
 -   desludging_vehicles: stores details about desludging vehicles used for desludging operations of the service providers.
 -   treatment_plants: stores information about the treatment plants.
 -   treatmentplant_tests: stores records of water effluent tests conducted at treatment plants.
 -   applications: stores information regarding applications submitted.
+-   desludging_schedule_temp: stores the currently generated scheduled-desludging queue.
 -   emptyings: stores information related to emptying operations carried out.
 -   sludge_collections: stores details about collections of sludge.
 -   feedbacks: stores feedback provided by the users.
@@ -604,6 +610,10 @@ Table Name: **containments**
 | emptied_status        | Emptied Status                  | Boolean value indicating the emptying status of the septic system, if emptied or not                                                                 | boolean                                           |
 | last_emptied_date     | Last Emptied Date               | Date of the last time the septic system was emptied                                                                                                  | date                                              |
 | next_emptying_date    | Next Emptying Date              | Date of the next scheduled emptying of the septic system                                                                                             | date                                              |
+| status                | Scheduled Desludging Status     | Scheduling workflow status; the application treats 0 as active, 1 as confirmed, 3 as queue-eligible, and 4 as opted out (eligible for reintegration). | smallint (nullable, DEFAULT 0)                    |
+| priority              | Scheduled Desludging Priority   | Calculated scheduling priority (1–3, with 1 highest).                                                                                                 | smallint (nullable)                                |
+| fstp_distance         | FSTP Distance                   | Distance to the treatment plant used in scheduling order; the migration does not calculate or backfill it.                                           | numeric(12,2) (nullable)                          |
+| closest_fstp_id       | Closest FSTP                    | Identifier of the closest treatment plant; a logical reference, not a database-enforced foreign key.                                                 | bigint (nullable)                                 |
 | no_of_times_emptied   | Number of Times Emptied         | Number of times the septic system has been emptied                                                                                                   | integer                                           |
 | surveyed_at           |                                 | Date when the septic system was surveyed                                                                                                             | date                                              |
 | toilet count          |                                 | Number of toilet served by the containment                                                                                                           | integer                                           |
@@ -633,11 +643,29 @@ Table Name: serivce_providers
 | contact_gender   | Contact Person Gender | Gender of contact person                                                                | character varying           |
 | contact_number   | Contact Person Number | Contact number of the contact person/ service provider office                           | big integer                 |
 | status           | Status                | Boolean value that defined the operational status of Service Provider                   | boolean (DEFAULT true)      |
+| service_area     | Service Area (Wards)  | Optional comma-separated wards served by this provider; scheduling also uses the normalized service_provider_wards table. | character varying (nullable) |
+| contract_document_pdf | Contract Document | Optional stored path or name of the provider contract PDF; not used by scheduling. | character varying (nullable) |
 | geom             |                       | Geospatial coordinates of the location of the service provider (represented as a point) | geometry(Point,4326)        |
 | user_id          |                       | Identifier for the user who created the record (Hidden)                                 | integer fk:auth.users(id)   |
 | created_at       |                       | timestamp when the record was created (Auto Fill, Hidden)                               | timestamp without time zone |
 | updated_at       |                       | Timestamp when the record was last updated (Auto Fill, Hidden)                          | timestamp without time zone |
 | deleted_at       |                       | Timestamp when the record was deleted (Auto Fill, Hidden)                               | timestamp without time zone |
+
+### Service Provider Wards
+
+Table Name: **service_provider_wards**
+
+One row records a ward served by a provider. The relationship to `fsm.service_providers` is used by the application but is not enforced by a database foreign key.
+
+| **Field Name** | **Label** | **Description** | **Data Type** |
+| -------------- | --------- | --------------- | ------------- |
+| id | | Unique identifier for the provider-to-ward mapping | bigint pk |
+| service_provider_id | Service Provider | Identifier of the provider covering the ward (logical reference to `fsm.service_providers.id`) | bigint |
+| ward | Service Area Ward | Ward covered by the provider | integer |
+| created_at | | Timestamp when the record was created (Auto Fill, Hidden) | timestamp without time zone |
+| updated_at | | Timestamp when the record was last updated (Auto Fill, Hidden) | timestamp without time zone |
+
+Unique constraint: (`service_provider_id`, `ward`). Indexes: `service_provider_id`, `ward`.
 
 ### Employee Information
 
@@ -739,6 +767,40 @@ Table Name: treatmentplant_tests
 | deleted_at         |                 | Timestamp when the record was deleted (Auto Fill, Hidden)          | timestamp without time zone         |
 
 ## Emptying Service IMS
+
+### Scheduled Desludging Schedule
+
+Table Name: **desludging_schedule_temp**
+
+This table stores a regenerated operational queue. Its building, owner, containment and provider details are snapshots, not a replacement for the application, emptying, sludge-collection or feedback records. The provider may be unassigned; the `next_emptying_date` column was added by a later migration. References below are logical, not database-enforced foreign keys.
+
+| **Field Name** | **Label** | **Description** | **Data Type** |
+| -------------- | --------- | --------------- | ------------- |
+| id | | Unique identifier for the schedule row | bigint pk |
+| service_provider_id | Service Provider | Assigned provider, if available (logical reference to `fsm.service_providers.id`) | bigint (nullable) |
+| service_provider_name | Service Provider Name | Snapshot of the assigned provider name | character varying(255) (nullable) |
+| bin | BIN | Building identification number associated with the containment | character varying(255) |
+| ward | Ward Number | Building ward used for provider matching | integer (nullable) |
+| house_number | House Number | Building house-number snapshot | character varying(255) (nullable) |
+| house_locality | House Locality | Building locality snapshot | character varying(255) (nullable) |
+| road_code | Road Code | Building road-code snapshot | character varying(255) (nullable) |
+| containment_id | Containment ID | Scheduled containment (logical reference to `fsm.containments.id`) | character varying(255) |
+| next_emptying_date | Next Emptying Date | Date copied from the containment after schedule allocation | date (nullable) |
+| fstp_distance | FSTP Distance | Containment distance snapshot used in queue ordering | numeric(12,2) (nullable) |
+| priority | Priority | Containment priority snapshot | smallint (nullable) |
+| sequence | Sequence | Generated queue sequence | integer (nullable) |
+| status | Status | Scheduling-status snapshot | smallint (nullable, DEFAULT 0) |
+| owner_name | Owner Name | Owner-name snapshot | character varying(255) (nullable) |
+| owner_gender | Owner Gender | Owner-gender snapshot | character varying(50) (nullable) |
+| owner_contact | Owner Contact | Owner-contact snapshot | character varying(255) (nullable) |
+| respondent_name | Respondent Name | Optional respondent-name snapshot | character varying(255) (nullable) |
+| respondent_contact | Respondent Contact | Optional respondent-contact snapshot | character varying(255) (nullable) |
+| generated_by | Generated By | Identifier of the user who generated the queue (logical reference to `auth.users.id`) | bigint (nullable) |
+| generated_at | Generated At | Time at which the queue row was generated | timestamp without time zone (nullable) |
+| created_at | | Timestamp when the row was created (Auto Fill, Hidden) | timestamp without time zone (nullable) |
+| updated_at | | Timestamp when the row was last updated (Auto Fill, Hidden) | timestamp without time zone (nullable) |
+
+Unique constraint: (`service_provider_id`, `containment_id`). Indexes: (`service_provider_id`, `status`, `sequence`), (`priority`, `fstp_distance`), and individual indexes on `containment_id`, `bin`, `ward`, `generated_at` and `next_emptying_date`. Because `service_provider_id` is nullable, PostgreSQL's unique constraint does not itself prevent multiple unassigned rows for the same containment.
 
 ### Application
 
@@ -1110,6 +1172,18 @@ This table stores the value that is input from the editable form and is used as 
 | 4  | greywater_conversion_factor_not_connected_to_sewer         | 80    | cwis_setting |
 | 5  | fs_generation_from_containment_not_connected_to_sewer_lpcd | 270   | cwis_setting |
 | 6  | fs_generation_from_permeable_or_unlined_pit_lpcd           | 280   | cwis_setting |
+
+**Scheduled desludging settings in the existing `public.site_settings` table**
+
+The scheduling migration adds rows with category `desludging_schedule`; it does not create a new table or columns. IDs are allocated from the current maximum, so fixed IDs are not listed here. Values are stored as strings.
+
+| name | Default value | Description |
+| ---- | ------------- | ----------- |
+| Schedule Desludging Start Date | empty string | Optional first allocation date (`YYYY-MM-DD`). |
+| Schedule Regeneration Period | 6 | Number of days added to today when a saved start date is already past. |
+| Trip Capacity Per Day | 20 | Configured daily trip capacity used by allocation. |
+| Weekend | Friday,Saturday | Comma-separated weekdays excluded from allocation. |
+| Holiday Dates | empty string | Comma-separated `YYYY-MM-DD` dates excluded from allocation. |
 
 ## NSD Setting
 

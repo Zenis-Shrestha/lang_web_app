@@ -111,6 +111,65 @@ class ServiceProviderService
             })
             ->make(true);
     }
+
+    /**
+     * Return municipality wards that are not covered by any operational
+     * service provider. Both the normalized mapping and legacy CSV field are
+     * considered so the information remains accurate during migration.
+     */
+    public function getUncoveredServiceAreaWards(): array
+    {
+        $municipalityWards = DB::table('layer_info.wards')
+            ->whereNotNull('ward')
+            ->pluck('ward')
+            ->map(function ($ward) {
+                return (int) $ward;
+            })
+            ->filter(function ($ward) {
+                return $ward > 0;
+            })
+            ->unique()
+            ->sort()
+            ->values();
+
+        $providers = DB::table('fsm.service_providers')
+            ->whereNull('deleted_at')
+            ->where('status', true)
+            ->get(['id', 'service_area']);
+
+        $coveredWards = $providers
+            ->pluck('service_area')
+            ->flatMap(function ($serviceArea) {
+                return explode(',', (string) $serviceArea);
+            })
+            ->map(function ($ward) {
+                return (int) trim($ward);
+            })
+            ->filter(function ($ward) {
+                return $ward > 0;
+            });
+
+        if ($providers->isNotEmpty()) {
+            $coveredWards = $coveredWards->merge(
+                DB::table('fsm.service_provider_wards')
+                    ->whereIn(
+                        'service_provider_id',
+                        $providers->pluck('id')
+                    )
+                    ->pluck('ward')
+                    ->map(function ($ward) {
+                        return (int) $ward;
+                    })
+            );
+        }
+
+        return $municipalityWards
+            ->diff($coveredWards->unique())
+            ->sort()
+            ->values()
+            ->all();
+    }
+
     /**
      * Store or update a newly created resource in storage.
      *
@@ -119,7 +178,30 @@ class ServiceProviderService
      * @return bool
      */
     public function storeOrUpdate($id, $data)
-    {
+    {   
+        $serviceArea = null;
+        $wards = [];
+
+        if (!empty($data['service_area'])) {
+            $wards = array_map(
+                'intval',
+                (array) $data['service_area']
+            );
+
+            $wards = array_values(
+                array_unique(
+                    array_filter($wards, function ($ward) {
+                        return $ward > 0;
+                    })
+                )
+            );
+
+            sort($wards);
+
+            $serviceArea = !empty($wards)
+                ? implode(',', $wards)
+                : null;
+        }
         if (is_null($id)) {
             $serviceProvider = new ServiceProvider();
             $serviceProvider->company_name = $data['company_name'] ? $data['company_name'] : null;
@@ -130,8 +212,10 @@ class ServiceProviderService
             $serviceProvider->contact_gender = $data['contact_gender'] ? $data['contact_gender'] : null;
             $serviceProvider->contact_number = $data['contact_number'] ? $data['contact_number'] : null;
             $serviceProvider->status = $data['status'] ? $data['status'] : 0;
-
+            $serviceProvider->contract_document_pdf =$data['contract_document_pdf'] ?? null;
+            $serviceProvider->service_area = $serviceArea;
             $serviceProvider->save();
+            $this->syncServiceAreaWards($serviceProvider->id, $wards);
             return $serviceProvider->id;
         } else {
             $serviceProvider = ServiceProvider::find($id);
@@ -143,9 +227,12 @@ class ServiceProviderService
             $serviceProvider->contact_gender = $data['contact_gender'] ? $data['contact_gender'] : null;
             $serviceProvider->contact_number = $data['contact_number'] ? $data['contact_number'] : null;
             $serviceProvider->status = $data['status'] ? $data['status'] : 0;
+            $serviceProvider->contract_document_pdf = $data['contract_document_pdf']?? $serviceProvider->contract_document_pdf;
 
+            $serviceProvider->service_area = $serviceArea;
 
             $serviceProvider->save();
+            $this->syncServiceAreaWards($serviceProvider->id, $wards);
             if ($data['status'] == 0) {
                 if ($serviceProvider->applications()->exists()) {
                     $applicationsCount =  $serviceProvider->applications()->where('emptying_status', 'false')->count();
@@ -162,6 +249,31 @@ class ServiceProviderService
                 }
             }
         }
+    }
+
+    /** Keep normalized service-area coverage aligned with the legacy CSV field. */
+    private function syncServiceAreaWards(int $serviceProviderId, array $wards): void
+    {
+        DB::table('fsm.service_provider_wards')
+            ->where('service_provider_id', $serviceProviderId)
+            ->delete();
+
+        if (empty($wards)) {
+            return;
+        }
+
+        $timestamp = now();
+
+        DB::table('fsm.service_provider_wards')->insert(
+            array_map(function ($ward) use ($serviceProviderId, $timestamp) {
+                return [
+                    'service_provider_id' => $serviceProviderId,
+                    'ward' => $ward,
+                    'created_at' => $timestamp,
+                    'updated_at' => $timestamp,
+                ];
+            }, $wards)
+        );
     }
 
     /**

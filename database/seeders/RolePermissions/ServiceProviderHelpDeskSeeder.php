@@ -43,6 +43,8 @@ class ServiceProviderHelpDeskSeeder extends Seeder
                        'Ward-Wise Distribution of Emptying Requests for the Next Four Weeks Chart'
            ])
            );
+           $createdRole->givePermissionTo(Permission::where('group','Schedule Desludging')->get());
+           $createdRole->givePermissionTo(Permission::where('group','Schedule Reintegration')->get());
                     break;
             }
         }

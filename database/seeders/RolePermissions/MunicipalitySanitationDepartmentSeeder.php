@@ -39,6 +39,9 @@ class MunicipalitySanitationDepartmentSeeder extends Seeder
                     $createdRole->givePermissionTo(Permission::all()->whereIn('group', ['Treatment Plant Efficiency Standards'])
                         ->whereIn('type', ['View','Edit']));
 
+                    $createdRole->givePermissionTo(Permission::all()->whereIn('group', ['Schedule Reintegration'])
+                        ->whereIn('type', ['List']));
+
                     $createdRole->givePermissionTo(Permission::all()->whereIn('group', ['Containments'])
                         ->whereIn('type', ['View', 'Export', 'List', 'View on map', 'Service History']));
                     

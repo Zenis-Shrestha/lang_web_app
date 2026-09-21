@@ -404,6 +404,50 @@ Route::group([
 
     Route::resource('ctpt-users', 'CtptUserController');
 
+
+    /**
+     * Desludging Schedule Routes
+     */
+    Route::get(
+        'desludging-schedule',
+        'DesludgingScheduleController@index'
+    )->name('desludging-schedule.index');
+
+    Route::get(
+        'desludging-schedule/data',
+        'DesludgingScheduleController@getData'
+    )->name('desludging-schedule.data');
+
+    Route::post(
+        'desludging-schedule/regenerate',
+        'DesludgingScheduleController@regenerateDesludgingSchedule'
+    )->name('desludging-schedule.regenerate');
+
+    Route::post(
+        'desludging-schedule/accept',
+        'DesludgingScheduleController@accept'
+    )->name('desludging-schedule.accept');
+
+    Route::post(
+        'desludging-schedule/{bin}/disagree',
+        'DesludgingScheduleController@disagree'
+    )->name('desludging-schedule.disagree');
+
+    Route::get(
+        'desludging-reintegration',
+        'DesludgingReintegrationController@index'
+    )->name('desludging-reintegration.index');
+
+    Route::get(
+        'desludging-reintegration/data',
+        'DesludgingReintegrationController@getData'
+    )->name('desludging-reintegration.data');
+
+    Route::post(
+        'desludging-reintegration/confirm',
+        'DesludgingReintegrationController@confirm'
+    )->name('desludging-reintegration.confirm');
+
     /**
      * Application Routes
      *
@@ -539,7 +583,7 @@ Route::group(['middleware' => 'auth'], function () {
     Route::get('maps/export-containment-report','MapsController@getContainmentReportCsv');
     Route::get('maps/check-location-within-boundary','MapsController@checkLocationWithinBoundary');
     Route::get('maps/toilet-isochrone', 'MapsController@getToiletIsochroneAreaLayers');
-   Route::get('/proxy-wms', 'MapsController@proxyWms');
+   Route::get('/proxy-wms', 'MapsController@proxyWms')->middleware('throttle:20,1');
 
 });
 

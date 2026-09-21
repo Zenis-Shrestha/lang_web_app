@@ -55,7 +55,7 @@ class MunicipalityExecutiveSeeder extends Seeder
                     $createdRole->givePermissionTo(Permission::all()->whereIn('group', ['Water Samples', 'Hotspots', 'Yearly Waterborne Cases'])->whereNotIn('type', ['Add', 'Edit', 'Delete', 'Import', 'History']));
 
                     //For Settings
-                    $createdRole->givePermissionTo(Permission::all()->whereIn('group', ['Users', 'Roles'])->whereIn('type', ['List', 'View']));
+                    $createdRole->givePermissionTo(Permission::all()->whereIn('group', ['Users', 'Roles', 'Schedule Reintegration'])->whereIn('type', ['List', 'View']));
 
                     $createdRole->givePermissionTo(Permission::all()->whereIn('group', ['NSD Setting'])
                         ->whereIn('type', ['List']));

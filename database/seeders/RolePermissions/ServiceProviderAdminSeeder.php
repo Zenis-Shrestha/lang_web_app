@@ -75,6 +75,10 @@ class ServiceProviderAdminSeeder extends Seeder
                'Delete',
                'Activity'
            ]));
+
+           $createdRole->givePermissionTo(Permission::where('group','Schedule Desludging')->get());
+           $createdRole->givePermissionTo(Permission::where('group','Schedule Reintegration')->get());
+
         break;
         }
         }

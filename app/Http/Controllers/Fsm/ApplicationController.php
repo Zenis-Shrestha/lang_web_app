@@ -63,12 +63,29 @@ class ApplicationController extends Controller
      *
      * @return View
      */
-    public function create()
+    public function create(Request $request)
     {
+        $action_type = $request->query('action_type')
+            ?? old('action_type');
+
+        if ($action_type !== 'confirm') {
+            session()->forget([
+                'schedule_accept',
+                'action_type',
+                'bin',
+                'containment_id',
+                'road_code',
+                'ward',
+                'service_provider_id',
+                'next_emptying_date',
+            ]);
+        }
+
         return view('fsm.applications.create',[
             'formAction' => $this->applicationService->getCreateFormAction(),
             'formFields' => $this->applicationService->getCreateFormFields(),
-            'indexAction' => $this->applicationService->getIndexAction()
+            'indexAction' => $this->applicationService->getIndexAction(),
+            'action_type' => $action_type,
         ]);
     }
 

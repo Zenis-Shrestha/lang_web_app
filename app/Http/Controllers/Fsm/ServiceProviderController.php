@@ -15,6 +15,7 @@ use DB;
 use App\Services\Fsm\ServiceProviderService;
 use App\Services\Auth\UserService;
 use App\Enums\ServiceProviderStatus;
+use Illuminate\Support\Facades\Storage;
 
 class ServiceProviderController extends Controller
 {
@@ -68,9 +69,17 @@ class ServiceProviderController extends Controller
     {
         $page_title =__("Add Service Provider") ;
         $wards = Ward::orderBy('ward')->pluck('ward', 'ward')->toArray();
+        $uncoveredWards = $this->serviceProviderService
+            ->getUncoveredServiceAreaWards();
         $serviceProvider = null;
         $serviceProviderStatus = ServiceProviderStatus::asSelectArray();
-        return view('fsm/service-providers.create', compact('page_title', 'wards','serviceProvider', 'serviceProviderStatus'));
+        return view('fsm/service-providers.create', compact(
+            'page_title',
+            'wards',
+            'uncoveredWards',
+            'serviceProvider',
+            'serviceProviderStatus'
+        ));
     }
 
     /**
@@ -81,24 +90,54 @@ class ServiceProviderController extends Controller
      */
     public function store(ServiceProviderRequest $request)
     {
-        $data = $request->all();
-        $serviceProviderId = $this->serviceProviderService->storeOrUpdate($id = null,$data);
-        if(!is_null($request->create_user))
-        {
-             $data['service_provider_id'] = $serviceProviderId;
-             $data['user_type'] = "Service Provider";
-             $data['roles']= "Service Provider - Admin";
-             $data['gender']= $request->contact_gender;
-             $data['username']=  explode('@', $request->email)[0];
-             $data['name'] = $data['company_name'];
-             
-             $this->userService->storeOrUpdate($id = null,$data);
-             $successMessage = __('Service Provider and Service Provider - Admin User created successfully.');
+        $data = $request->validated();
+
+        if ($request->hasFile('contract_document_pdf')) {
+            $file = $request->file('contract_document_pdf');
+
+            $companyName = preg_replace(
+                '/[^A-Za-z0-9_-]/',
+                '_',
+                $request->company_name
+            );
+
+            $filename = $companyName . '_' . time() . '.pdf';
+
+            $data['contract_document_pdf'] = $file->storeAs(
+                'contract_documents',
+                $filename,
+                'public'
+            );
+        }
+
+        $serviceProviderId = $this->serviceProviderService
+            ->storeOrUpdate(null, $data);
+
+        if ($request->filled('create_user')) {
+            /*
+            * validated() excludes create-user fields unless they have validation
+            * rules, so copy the necessary request values.
+            */
+            $userData = $request->all();
+
+            $userData['service_provider_id'] = $serviceProviderId;
+            $userData['user_type'] = 'Service Provider';
+            $userData['roles'] = 'Service Provider - Admin';
+            $userData['gender'] = $request->contact_gender;
+            $userData['username'] = explode('@', $request->email)[0];
+            $userData['name'] = $request->company_name;
+
+            $this->userService->storeOrUpdate(null, $userData);
+
+            $successMessage = __(
+                'Service Provider and Service Provider - Admin User created successfully.'
+            );
         } else {
             $successMessage = __('Service Provider created successfully.');
-
         }
-        return redirect('fsm/service-providers')->with('success',$successMessage);
+
+        return redirect('fsm/service-providers')
+            ->with('success', $successMessage);
     }
 
     /**
@@ -127,15 +166,38 @@ class ServiceProviderController extends Controller
      */
     public function edit($id)
     {
-        $serviceProvider = ServiceProvider::find($id);
-        $wards = Ward::orderBy('ward')->pluck('ward', 'ward')->toArray();
-        $serviceProviderStatus = ServiceProviderStatus::asSelectArray();
-        if ($serviceProvider) {
-            $page_title = __("Edit Service Provider") ;
-            return view('fsm/service-providers.edit', compact('page_title', 'serviceProvider', 'wards', 'serviceProviderStatus'));
-        } else {
-            abort(404);
+        $serviceProvider = ServiceProvider::findOrFail($id);
+
+        $wards = Ward::orderBy('ward')
+            ->pluck('ward', 'ward')
+            ->toArray();
+
+        $serviceProviderStatus =
+            ServiceProviderStatus::asSelectArray();
+
+        $selectedWards = [];
+
+        if (!empty($serviceProvider->service_area)) {
+            $selectedWards = array_map(
+                'intval',
+                array_filter(
+                    explode(',', $serviceProvider->service_area)
+                )
+            );
         }
+
+        $page_title = __('Edit Service Provider');
+
+        return view(
+            'fsm/service-providers.edit',
+            compact(
+                'page_title',
+                'serviceProvider',
+                'wards',
+                'serviceProviderStatus',
+                'selectedWards'
+            )
+        );
     }
 
     /**
@@ -147,14 +209,57 @@ class ServiceProviderController extends Controller
      */
     public function update(ServiceProviderRequest $request, $id)
     {
-        $serviceProvider = ServiceProvider::find($id);
-        if ($serviceProvider) {
-            $data = $request->all();
-            $this->serviceProviderService->storeOrUpdate($serviceProvider->id,$data);
-            return redirect('fsm/service-providers')->with('success',__('Service Provider updated successfully.'));
+        $serviceProvider = ServiceProvider::findOrFail($id);
+        $data = $request->validated();
+
+        if ($request->hasFile('contract_document_pdf')) {
+            $file = $request->file('contract_document_pdf');
+
+            $companyName = preg_replace(
+                '/[^A-Za-z0-9_-]/',
+                '_',
+                $request->company_name
+            );
+
+            $filename = $companyName . '_' . time() . '.pdf';
+
+            $newPath = $file->storeAs(
+                'contract_documents',
+                $filename,
+                'public'
+            );
+
+            /*
+            * Delete the old document only after the new document
+            * has been stored successfully.
+            */
+            if (
+                !empty($serviceProvider->contract_document_pdf) &&
+                Storage::disk('public')->exists(
+                    $serviceProvider->contract_document_pdf
+                )
+            ) {
+                Storage::disk('public')->delete(
+                    $serviceProvider->contract_document_pdf
+                );
+            }
+
+            $data['contract_document_pdf'] = $newPath;
         } else {
-            return redirect('fsm/service-providers')->with('error',__('Failed to update Servie Provider.'));
+            $data['contract_document_pdf'] =
+                $serviceProvider->contract_document_pdf;
         }
+
+        $this->serviceProviderService->storeOrUpdate(
+            $serviceProvider->id,
+            $data
+        );
+
+        return redirect('fsm/service-providers')
+            ->with(
+                'success',
+                __('Service Provider updated successfully.')
+            );
     }
 
     /**

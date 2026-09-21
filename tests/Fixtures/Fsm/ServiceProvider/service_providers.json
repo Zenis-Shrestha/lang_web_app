@@ -1,0 +1,43 @@
+[
+    {
+        "id": 1,
+        "test-data-description": "Valid service provider used for create and update CRUD tests",
+        "payload": {
+            "company_name": "PHPUnit Service Provider",
+            "email": "phpunit-service-provider@example.test",
+            "ward": 2,
+            "company_location": "Test Address",
+            "contact_person": "Test Contact",
+            "contact_gender": "Male",
+            "contact_number": "9800000000",
+            "service_area": [7, 2, 4],
+            "status": 1
+        },
+        "expected": {
+            "ward": 2,
+            "company_location": "Test Address",
+            "contact_person": "Test Contact",
+            "contact_gender": "Male",
+            "contact_number": "9800000000",
+            "service_area": "2,4,7",
+            "status": 1
+        }
+    },
+    {
+        "id": 2,
+        "test-data-description": "Missing required fields are rejected",
+        "payload": {},
+        "validation_errors": [
+            "company_name",
+            "email",
+            "ward",
+            "company_location",
+            "contact_person",
+            "contact_number",
+            "contact_gender",
+            "contract_document_pdf",
+            "service_area",
+            "status"
+        ]
+    }
+]

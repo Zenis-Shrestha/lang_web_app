@@ -1741,7 +1741,7 @@ class PermissionsSeeder extends Seeder
                         "name" => "Edit NSD Setting"
                     ]
                 ]
-            ]
+            ],
             [
                 "group" => "NSD",
                 "perms" => [
@@ -1752,23 +1752,6 @@ class PermissionsSeeder extends Seeder
                     [
                         "type" => "Show",
                         "name" => "Check Status of Indicator in NSD"
-                    ]
-                ]
-            ],
-            [
-                "group" => "NSD Setting",
-                "perms" => [
-                    [
-                        "type" => "List",
-                        "name" => "LisT NSD Setting"
-                    ],
-                    [
-                        "type" => "Save",
-                        "name" => "Save NSD Setting"
-                    ],
-                    [
-                        "type" => "Edit",
-                        "name" => "Edit NSD Setting"
                     ]
                 ]
             ],
@@ -1853,7 +1836,83 @@ class PermissionsSeeder extends Seeder
                     ],
                 ]
             ],
-            ];
+            [
+                'group' => 'Schedule Desludging',
+                'perms' => [
+                    [
+                        'type' => 'List',
+                        'name' => 'List Schedule Desludging',
+                    ],
+                    [
+                        'type' => 'View',
+                        'name' => 'View Schedule Desludging',
+                    ],
+                    [
+                        'type' => 'Regenerate',
+                        'name' => 'Regenerate Schedule Desludging',
+                    ],
+                    [
+                        'type' => 'Confirm',
+                        'name' => 'Confirm Schedule Desludging',
+                    ],
+                    [
+                        'type' => 'Delete',
+                        'name' => 'Delete Schedule Desludging',
+                    ],
+                    [
+                        'type' => 'Export',
+                        'name' => 'Export Schedule Desludging',
+                    ],
+                    [
+                        'type' => 'Reschedule',
+                        'name' => 'Reschedule Schedule Desludging',
+                    ],
+                    [
+                        'type' => 'Filter',
+                        'name' => 'Filter Schedule Desludging',
+                    ],
+                ],
+            ],
+            [
+                'group' => 'Schedule Reintegration',
+                'perms' => [
+                    [
+                        'type' => 'List',
+                        'name' => 'List Schedule Reintegration',
+                    ],
+                    [
+                        'type' => 'View',
+                        'name' => 'View Schedule Reintegration',
+                    ],
+                    [
+                        'type' => 'Confirm',
+                        'name' => 'Confirm Schedule Reintegration',
+                    ],
+                    [
+                        'type' => 'Edit',
+                        'name' => 'Edit Schedule Reintegration',
+                    ],
+                    [
+                        'type' => 'Delete',
+                        'name' => 'Delete Schedule Reintegration',
+                    ],
+                    [
+                        'type' => 'Export',
+                        'name' => 'Export Schedule Reintegration',
+                    ],
+                    [
+                        'type' => 'Export',
+                        'name' => 'Generate Schedule Reintegration Report',
+                    ],
+                    [
+                        'type' => 'History',
+                        'name' => 'View Schedule Reintegration History',
+                    ],
+                ],
+            ],
+        ];
+
+
 
         foreach ($grouped_permissions as $group) {
             foreach ($group['perms'] as $permission){

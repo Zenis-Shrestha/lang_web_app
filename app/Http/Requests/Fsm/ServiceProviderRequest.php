@@ -56,6 +56,23 @@ class ServiceProviderRequest extends FormRequest
                         'contact_number' => 'required|regex:/^[0-9]+$/',
                         'contact_gender' => 'required|string',
                         'status' => 'required|boolean',
+                        'contract_document_pdf' => [
+                                                        'required',
+                                                        'file',
+                                                        'mimes:pdf',
+                                                        'max:5120',
+                                                    ],
+
+                                                    'service_area' => [
+                                                        'required',
+                                                        'array',
+                                                        'min:1',
+                                                    ],
+
+                                                    'service_area.*' => [
+                                                        'required',
+                                                        'integer',
+                                                    ],
                         'password' => ['required_if:create_user,on', 'nullable',Password::min(8)
                         ->letters()
                         ->mixedCase()
@@ -87,6 +104,23 @@ class ServiceProviderRequest extends FormRequest
                             'contact_person' => ['required', 'string', 'max:255'],
                             'contact_number' => 'required|regex:/^[0-9]+$/',
                             'contact_gender' => 'required|string',
+                            'contract_document_pdf' => [
+                                                            'nullable',
+                                                            'file',
+                                                            'mimes:pdf',
+                                                            'max:5120',
+                                                        ],
+
+                                                        'service_area' => [
+                                                            'required',
+                                                            'array',
+                                                            'min:1',
+                                                        ],
+
+                                                        'service_area.*' => [
+                                                            'required',
+                                                            'integer',
+                                                        ],
                             'status' => 'required|boolean',
                         ];
                     }
@@ -112,10 +146,19 @@ class ServiceProviderRequest extends FormRequest
             'contact_number.required'=>__('The Contact Person Number is required.'),
             'contact_number.integer'=>__('The Contact Person Number must be an integer.'),
             'contact_gender.required' => __('The Contact Person Gender is required.'),
+            'contract_document_pdf.required' =>__('The Contract Document is required.'),
+            'contract_document_pdf.file' =>__('The Contract Document must be a file.'),
+            'contract_document_pdf.mimes' =>__('The Contract Document must be a PDF.'),
+            'contract_document_pdf.max' =>__('The Contract Document must not exceed 5 MB.'),
+            'service_area.required' =>__('The Service Area (Wards) is required.'),
+            'service_area.array' =>__('Please select valid Service Area wards.'),
+            'service_area.min' =>__('Please select at least one Service Area ward.'),
+            'service_area.*.integer' =>__('Each selected Service Area ward must be valid.'),
             'status.required' => __('The Status is required.'),
             'password.required_if' => __('The Password is required when create user is on.'),
             'password.confirmed' => __('The Confirm Password does not match the Password.'),
             'password.uncompromised' => __('The given password has appeared in a data leak. Please choose a different password.'),
+
         ];
     }
 }

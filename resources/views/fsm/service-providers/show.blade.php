@@ -60,6 +60,31 @@ Developed By: Innovative Solution Pvt. Ltd. (ISPL)   -->
 		</div>
 
 		<div class="form-group row">
+			{!! Form::label('contract_document_pdf', __('Contract Document'), ['class' => 'col-sm-3 control-label']) !!}
+			<div class="col-sm-3">
+				@if(!empty($serviceProvider->contract_document_pdf))
+					<a href="{{ asset('storage/' . $serviceProvider->contract_document_pdf) }}"
+						target="_blank"
+						rel="noopener noreferrer"
+						class="btn btn-info btn-sm">
+						<i class="fa fa-file-pdf-o"></i> {{ __('View Contract Document') }}
+					</a>
+				@else
+					<div class="form-control">{{ __('Not available') }}</div>
+				@endif
+			</div>
+		</div>
+
+		<div class="form-group row">
+			{!! Form::label('service_area', __('Service Area (Wards)'), ['class' => 'col-sm-3 control-label']) !!}
+			<div class="col-sm-3">
+				<div class="form-control">
+					{{ !empty($serviceProvider->service_area) ? str_replace(',', ', ', $serviceProvider->service_area) : __('Not available') }}
+				</div>
+			</div>
+		</div>
+
+		<div class="form-group row">
 			{!! Form::label('status', __('Status'), ['class' => 'col-sm-3 control-label']) !!}
 			<div class="col-sm-3">
 				{!! Form::label(null, $status, ['class' => 'form-control']) !!}

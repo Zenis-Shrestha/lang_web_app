@@ -53,6 +53,9 @@ class MunicipalityHelpDeskSeeder extends Seeder
                         'Municipality Map Layer','Info Map Tools',
                         'Ward Boundary Map Layer',
                         'Low Income Community Map Layer' ]));
+                    $createdRole->givePermissionTo(Permission::where('group','Schedule Desludging')->get()
+    );
+                    $createdRole->givePermissionTo(Permission::where('group','Schedule Reintegration')->get());
 
                     break;
             }

@@ -12,12 +12,28 @@ Developed By: Innovative Solution Pvt. Ltd. (ISPL)   -->
     @include('layouts.components.success-alert')
     @include('layouts.components.error-alert')
     {!! Form::open(['url' => route('application.store'), 'class' => 'form-horizontal', 'id' => 'create_application_form']) !!}
+    <input
+        type="hidden"
+        name="action_type"
+        value="{{ $action_type ?? session('action_type') ?? old('action_type') }}"
+    >
     @include('layouts.partial-form', ['submitButtonText' => __('Save'), 'cardForm' => true])
     {!! Form::close() !!}
 @endsection
 
 @push('scripts')
 <script>
+    const scheduleAccept = @json(session('schedule_accept'));
+    const isConfirm = @json(
+        ($action_type ?? session('action_type') ?? old('action_type')) === 'confirm'
+    );
+    const isScheduleConfirm = Boolean(
+        isConfirm && scheduleAccept && scheduleAccept.bin
+    );
+    const sessionServiceProviderId = @json(
+        session('service_provider_id') ?? old('service_provider_id')
+    );
+
     function autoFillDetails() {
         $(document).ready(function() {
             if ($("input[name='autofill']:checked").val() === 'on') {
@@ -32,7 +48,86 @@ Developed By: Innovative Solution Pvt. Ltd. (ISPL)   -->
         });
     }
 
+    function setOwnerFieldFromLookup(selector, hiddenName, value) {
+        const fieldValue = value === null ||
+            value === undefined ||
+            value === 'null' ||
+            value === 'undefined'
+            ? ''
+            : value;
+        const hasValue = $.trim(String(fieldValue)) !== '';
+
+        $(`input[type="hidden"][name="${hiddenName}"]`).remove();
+        $(selector).val(fieldValue).prop('disabled', hasValue);
+
+        if (hasValue) {
+            $('<input>', {
+                type: 'hidden',
+                name: hiddenName,
+                value: fieldValue
+            }).insertAfter(selector);
+        }
+    }
+
+    function lockConfirmAddressFields() {
+        if (!isScheduleConfirm) {
+            return;
+        }
+
+        ['road_code', 'bin', 'containment_id', 'ward'].forEach(
+            function (fieldName) {
+                const field = document.getElementById(fieldName);
+
+                if (!field) {
+                    return;
+                }
+
+                const $field = $(field);
+                const fallbackValue = scheduleAccept[fieldName] ?? '';
+                let fieldValue = $field.val();
+
+                if (
+                    (fieldValue === null || fieldValue === '') &&
+                    fallbackValue !== null &&
+                    fallbackValue !== ''
+                ) {
+                    fieldValue = String(fallbackValue);
+
+                    if (
+                        field.tagName === 'SELECT' &&
+                        !$field.find(`option[value="${fieldValue}"]`).length
+                    ) {
+                        $field.append(
+                            new Option(fieldValue, fieldValue, true, true)
+                        );
+                    }
+
+                    $field.val(fieldValue);
+                }
+
+                $(`input[type="hidden"]` +
+                    `[data-confirm-address="${fieldName}"]`).remove();
+
+                $field.prop('disabled', true);
+
+                $('<input>', {
+                    type: 'hidden',
+                    name: fieldName,
+                    value: fieldValue ?? '',
+                    'data-confirm-address': fieldName
+                }).insertAfter($field);
+
+                if ($field.hasClass('select2-hidden-accessible')) {
+                    $field.trigger('change.select2');
+                }
+            }
+        );
+    }
+
     function emptyAutoFields() {
+        $('input[type="hidden"][name="customer_name"], ' +
+            'input[type="hidden"][name="customer_gender"], ' +
+            'input[type="hidden"][name="customer_contact"]').remove();
         $('#containment_id').val('');
         $('#ward').val('');
         $('#customer_name').val('');
@@ -83,9 +178,21 @@ Developed By: Innovative Solution Pvt. Ltd. (ISPL)   -->
                                 containmentOptions += `<option value="${containment}">${containment}</option>`;
                             });
 
-                            $('#customer_name').val(res.customer_name).attr('disabled', true);
-                            $('#customer_gender').val(res.customer_gender).attr('disabled', true);
-                            $('#customer_contact').val(res.customer_contact).attr('disabled', true);
+                            setOwnerFieldFromLookup(
+                                '#customer_name',
+                                'customer_name',
+                                res.customer_name
+                            );
+                            setOwnerFieldFromLookup(
+                                '#customer_gender',
+                                'customer_gender',
+                                res.customer_gender
+                            );
+                            setOwnerFieldFromLookup(
+                                '#customer_contact',
+                                'customer_contact',
+                                res.customer_contact
+                            );
                             $('#household_served').val(res.household_served).attr('disabled', true);
                             $('#population_served').val(res.population_served).attr('disabled', true);
                             $('#toilet_count').val(res.toilet_count).attr('disabled', true);
@@ -111,8 +218,20 @@ Developed By: Innovative Solution Pvt. Ltd. (ISPL)   -->
                                         ${containmentOptions}
                                     </select>
                                 `);
+
+                                if (
+                                    scheduleAccept &&
+                                    scheduleAccept.containment_id
+                                ) {
+                                    $('#containment_id')
+                                        .val(String(scheduleAccept.containment_id))
+                                        .trigger('change');
+                                }
+
                                 let selectedContainment = localStorage.getItem("containment_id");
                             }
+
+                            lockConfirmAddressFields();
 
                             $("input[type='submit']").removeAttr('disabled');
                         } else if (res.status === false) {
@@ -192,8 +311,51 @@ Developed By: Innovative Solution Pvt. Ltd. (ISPL)   -->
 
         $('#bin').on('change', onAddressChange);
 
-        $('#create_application_form').on('submit', function (e) {
-            $('#containment_id').removeAttr('disabled'); // Ensure the field is enabled for submission
+        if (scheduleAccept && scheduleAccept.bin) {
+            localStorage.removeItem('selectedBINValue');
+            localStorage.removeItem('selectedBINText');
+            localStorage.removeItem('selectedRoadCode');
+            localStorage.removeItem('containment_id');
+
+            if (scheduleAccept.road_code) {
+                $('#road_code').append(
+                    new Option(
+                        scheduleAccept.road_code,
+                        scheduleAccept.road_code,
+                        true,
+                        true
+                    )
+                ).trigger('change');
+            }
+
+            $('#bin').append(
+                new Option(
+                    scheduleAccept.bin,
+                    scheduleAccept.bin,
+                    true,
+                    true
+                )
+            ).trigger('change');
+
+            if (scheduleAccept.ward) {
+                $('#ward').val(String(scheduleAccept.ward));
+            }
+
+            lockConfirmAddressFields();
+
+        }
+
+        $('#create_application_form').on('submit', function () {
+            if (isScheduleConfirm) {
+                lockConfirmAddressFields();
+            } else {
+                $('#containment_id').removeAttr('disabled');
+            }
+
+            if ($('#service_provider_id').is(':disabled')) {
+                $('input[name="service_provider_id"]')
+                    .val($('#service_provider_id').val());
+            }
         });
 
 
@@ -220,6 +382,21 @@ Developed By: Innovative Solution Pvt. Ltd. (ISPL)   -->
                 $('#service_provider_id').append('<option value="' + id + '">' + name + '</option>');
             });
 
+            if (isConfirm && sessionServiceProviderId) {
+                $('#service_provider_id')
+                    .val(String(sessionServiceProviderId))
+                    .trigger('change')
+                    .prop('disabled', true);
+
+                $('<input>', {
+                    type: 'hidden',
+                    name: 'service_provider_id',
+                    value: sessionServiceProviderId
+                }).insertAfter('#service_provider_id');
+
+                return;
+            }
+
             // Check if there is a previously selected service provider in localStorage
             const selectedServiceProviderValue = localStorage.getItem("selectedServiceProviderValue");
 
@@ -235,6 +412,10 @@ Developed By: Innovative Solution Pvt. Ltd. (ISPL)   -->
 
     // Save selected service provider value to localStorage on change
     $('#service_provider_id').on('change', function() {
+        if (isConfirm) {
+            return;
+        }
+
         var selectedServiceProviderValue = $(this).val();
         localStorage.setItem("selectedServiceProviderValue", selectedServiceProviderValue);
     });
@@ -276,9 +457,21 @@ Developed By: Innovative Solution Pvt. Ltd. (ISPL)   -->
             // Populate form fields with localStorage data
             if (selectedRoadCode) $('#road_code').val(selectedRoadCode);
             if (selectedBINValue) $('#bin').val(selectedBINValue);
-            if (selectedOwnerName) $('#customer_name').val(selectedOwnerName).prop('disabled', true);
-            if (selectedOwnerGender) $('#customer_gender').val(selectedOwnerGender).prop('disabled', true);
-            if (selectedOwnerContact) $('#customer_contact').val(selectedOwnerContact).prop('disabled', true);
+            setOwnerFieldFromLookup(
+                '#customer_name',
+                'customer_name',
+                selectedOwnerName
+            );
+            setOwnerFieldFromLookup(
+                '#customer_gender',
+                'customer_gender',
+                selectedOwnerGender
+            );
+            setOwnerFieldFromLookup(
+                '#customer_contact',
+                'customer_contact',
+                selectedOwnerContact
+            );
             if (selectedHouseholdServed) $('#household_served').val(selectedHouseholdServed).prop('disabled', true);
             if (selectedPopulationServed) $('#population_served').val(selectedPopulationServed).prop('disabled', true);
             if (selectedToiletCount) $('#toilet_count').val(selectedToiletCount).prop('disabled', true);
@@ -341,6 +534,13 @@ Developed By: Innovative Solution Pvt. Ltd. (ISPL)   -->
             localStorage.setItem("selectedBINValue", selectedBINValue);
             localStorage.setItem("selectedBINText", selectedBINText);
         });
+
+        $('#customer_name, #customer_gender, #customer_contact')
+            .on('input change', function () {
+                if ($('#autofill').is(':checked')) {
+                    autoFillDetails();
+                }
+            });
 
         checkDetailsAndUpdateCheckbox();
         // Function to check if the Owner and Applicant details are the same

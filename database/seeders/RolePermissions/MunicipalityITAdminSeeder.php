@@ -34,6 +34,7 @@ class MunicipalityITAdminSeeder extends Seeder
                         'FSM Dashboard',
                         'Utility Dashboard',
                         'Language',
+                        'Schedule Reintegration',
                     ]));
                     $createdRole->givePermissionTo(Permission::all()->whereIn('group', [
                         'Building Structures',

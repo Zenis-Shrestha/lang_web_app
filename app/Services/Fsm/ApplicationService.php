@@ -357,6 +357,153 @@ class ApplicationService
      */
     public function getCreateFormFields()
     {
+        $actionType = session('action_type')
+            ?? request('action_type')
+            ?? old('action_type');
+
+        if ($actionType === 'confirm') {
+            return [
+                [
+                    'title' => __('Address'),
+                    'fields' => [
+                        new FormField(
+                            label: __('Street Name / Street Code'),
+                            labelFor: 'road_code',
+                            inputType: 'multiple-select',
+                            inputId: 'road_code',
+                            selectValues: [],
+                            required: true
+                        ),
+                        new FormField(
+                            label: __('House Number / BIN'),
+                            labelFor: 'bin',
+                            inputType: 'multiple-select',
+                            inputId: 'bin',
+                            selectValues: [],
+                            required: true
+                        ),
+                        new FormField(
+                            label: __('Containment ID'),
+                            labelFor: 'containment_id',
+                            inputType: 'text',
+                            inputId: 'containment_id',
+                            placeholder: __('Containment ID')
+                        ),
+                        new FormField(
+                            label: __('Ward Number'),
+                            labelFor: 'ward',
+                            inputType: 'select',
+                            inputId: 'ward',
+                            placeholder: __('Ward Number'),
+                            selectValues: Ward::orderBy('ward')
+                                ->pluck('ward', 'ward')
+                                ->toArray()
+                        ),
+                    ],
+                ],
+                [
+                    'title' => __('Owner Details'),
+                    'fields' => [
+                        new FormField(
+                            label: __('Owner Name'),
+                            labelFor: 'customer_name',
+                            inputType: 'text',
+                            inputId: 'customer_name',
+                            placeholder: __('Owner Name'),
+                            required: true
+                        ),
+                        new FormField(
+                            label: __('Owner Gender'),
+                            labelFor: 'customer_gender',
+                            inputType: 'select',
+                            inputId: 'customer_gender',
+                            selectValues: [
+                                'Male' => 'Male',
+                                'Female' => 'Female',
+                                'Others' => 'Others',
+                            ],
+                            placeholder: __('Owner Gender'),
+                            required: true
+                        ),
+                        new FormField(
+                            label: __('Owner Contact (Phone)'),
+                            labelFor: 'customer_contact',
+                            inputType: 'text',
+                            inputId: 'customer_contact',
+                            placeholder: __('Owner Contact (Phone)'),
+                            oninput: 'validateOwnerContactInput(this)'
+                        ),
+                    ],
+                ],
+                [
+                    'title' => __('Applicant Details'),
+                    'copyDetails' => true,
+                    'fields' => [
+                        new FormField(
+                            label: __('Applicant Name'),
+                            labelFor: 'applicant_name',
+                            inputType: 'text',
+                            inputId: 'applicant_name',
+                            required: true,
+                            placeholder: __('Applicant Name')
+                        ),
+                        new FormField(
+                            label: __('Applicant Gender'),
+                            labelFor: 'applicant_gender',
+                            inputType: 'select',
+                            inputId: 'applicant_gender',
+                            selectValues: [
+                                'Male' => 'Male',
+                                'Female' => 'Female',
+                                'Others' => 'Others',
+                            ],
+                            required: true,
+                            placeholder: __('Applicant Gender')
+                        ),
+                        new FormField(
+                            label: __('Applicant Contact (Phone)'),
+                            labelFor: 'applicant_contact',
+                            inputType: 'text',
+                            inputId: 'applicant_contact',
+                            required: true,
+                            placeholder: __('Applicant Contact (Phone)'),
+                            oninput: 'validateOwnerContactInput(this)'
+                        ),
+                    ],
+                ],
+                [
+                    'title' => __('Application Details'),
+                    'fields' => [
+                        new FormField(
+                            label: __('Proposed Emptying Date'),
+                            labelFor: 'proposed_emptying_date',
+                            inputType: 'date',
+                            inputId: 'proposed_emptying_date',
+                            required: true,
+                            placeholder: __('Proposed Emptying Date')
+                        ),
+                        new FormField(
+                            label: __('Supervisory Assessment Date'),
+                            labelFor: 'supervisory_assessment_date',
+                            inputType: 'date',
+                            inputId: 'supervisory_assessment_date',
+                            required: true,
+                            placeholder: __('Supervisory Assessment Date')
+                        ),
+                        new FormField(
+                            label: __('Service Provider Name'),
+                            labelFor: 'service_provider_id',
+                            inputType: 'select',
+                            inputId: 'service_provider_id',
+                            selectValues: [],
+                            required: true,
+                            placeholder: __('Service Provider Name')
+                        ),
+                    ],
+                ],
+            ];
+        }
+
         return $this->createFormFields;
     }
 
@@ -627,6 +774,22 @@ class ApplicationService
                         required: true,
                         disabled: $application->emptying_status ? true : false, // Correct logic for disabling the field
                         placeholder: __('Proposed Emptying Date'),
+                    ),
+                    new FormField(
+                        label: __('Supervisory Assessment Date'),
+                        labelFor: 'supervisory_assessment_date',
+                        inputType: 'date',
+                        inputId: 'supervisory_assessment_date',
+                        inputValue: $application->supervisory_assessment_date
+                            ? Carbon::parse(
+                                $application->supervisory_assessment_date
+                            )->format('Y-m-d')
+                            : null,
+                        required: true,
+                        disabled: $application->emptying_status
+                            ? true
+                            : false,
+                        placeholder: __('Supervisory Assessment Date'),
                     ),
                     
                     new FormField(
@@ -1015,9 +1178,18 @@ class ApplicationService
                         "road_code" => $request->road_code,
 
                     ])->save();
-                    $building->household_served = $request->household_served ;
-                    $building->population_served = $request->population_served;
-                    $building->toilet_count = $request->toilet_count;
+                    if ($request->filled('household_served')) {
+                        $building->household_served = $request->household_served;
+                    }
+
+                    if ($request->filled('population_served')) {
+                        $building->population_served = $request->population_served;
+                    }
+
+                    if ($request->filled('toilet_count')) {
+                        $building->toilet_count = $request->toilet_count;
+                    }
+
                     $building->save();
                     $application->application_date = now()->format('Y-m-d H:i:s');
                     $application->user_id = Auth::user()->id;
@@ -1027,11 +1199,39 @@ class ApplicationService
                         $application->applicant_gender = $request->customer_gender??$owner->owner_gender??null;
                     };
                     $application->emergency_desludging_status = $request->emergency_desludging_status ?? $request->emergency_desludging_status ?? null;
+                    $application->supervisory_assessment_date =
+                        $request->supervisory_assessment_date;
                     $application->save();
+
+                    if ($request->action_type === 'confirm') {
+                        Containment::where('id', $request->containment_id)
+                            ->whereNull('deleted_at')
+                            ->update(['status' => 1]);
+
+                        DB::table('fsm.desludging_schedule_temp')
+                            ->where(
+                                'containment_id',
+                                (string) $request->containment_id
+                            )
+                            ->delete();
+                    }
                 });
             } catch (\Throwable $e) {
                 return redirect()->back()->withInput()->with('error',__("Error! Application couldn't be created. ").$e);
             }
+        }
+
+        if ($request->action_type === 'confirm') {
+            session()->forget([
+                'schedule_accept',
+                'action_type',
+                'bin',
+                'containment_id',
+                'road_code',
+                'ward',
+                'service_provider_id',
+                'next_emptying_date',
+            ]);
         }
 
         return redirect(route('application.index'))->with('success',__('Application created successfully.'));
