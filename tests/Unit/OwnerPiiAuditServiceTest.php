@@ -34,6 +34,7 @@ class OwnerPiiAuditServiceTest extends TestCase
         $result = $method->invoke($service, [
             'surface' => 'building_edit',
             'owner_name' => 'must-not-be-logged',
+            'current_password' => 'must-not-be-logged',
             'pii_pin' => 'must-not-be-logged',
             'encryption_key' => 'must-not-be-logged',
         ]);

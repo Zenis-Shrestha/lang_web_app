@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Services\OwnerPiiAuditService;
 use App\Services\PiiAccessService;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Hash;
 
 class OwnerPiiAccessController extends Controller
 {
@@ -24,8 +25,39 @@ class OwnerPiiAccessController extends Controller
     public function unlockList(Request $request)
     {
         $this->authorizePiiListUnlock($request);
+        $user = $request->user();
+        $password = (string) $request->input('current_password', '');
+        $passwordHash = (string) ($user->password ?? '');
+
+        if ($password === ''
+            || $passwordHash === ''
+            || !Hash::check($password, $passwordHash)) {
+            $this->piiAccess->lock();
+            $this->audit->record(
+                'pii_password_confirmation_failed',
+                false,
+                $user,
+                null,
+                ['surface' => 'building_data_table'],
+                'password_reentry'
+            );
+
+            return back()->withErrors([
+                'current_password' => __('Password confirmation failed.'),
+            ]);
+        }
+
+        $this->audit->record(
+            'pii_password_confirmation_succeeded',
+            true,
+            $user,
+            null,
+            ['surface' => 'building_data_table'],
+            'password_reentry'
+        );
+
         $scopes = ['list', 'view'];
-        $canEditOwnerPii = $request->user()->can('Edit Building Structure');
+        $canEditOwnerPii = $user->can('Edit Building Structure');
 
         if ($canEditOwnerPii) {
             $scopes[] = 'edit';
@@ -34,19 +66,19 @@ class OwnerPiiAccessController extends Controller
         $this->audit->record(
             'bulk_reveal_granted',
             true,
-            $request->user(),
+            $user,
             null,
             [
                 'surface' => 'building_data_table',
                 'expires_in_minutes' => (int) config('pii.unlock_minutes', 5),
                 'edit_enabled' => $canEditOwnerPii,
             ],
-            'authenticated_session'
+            'password_reentry'
         );
         $request->session()->regenerate();
         $this->piiAccess->unlock(
-            $request->user(),
-            'authenticated_session',
+            $user,
+            'password_reentry',
             $scopes,
             PiiAccessService::ALL_OWNERS_RESOURCE_ID
         );

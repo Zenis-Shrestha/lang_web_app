@@ -13,6 +13,7 @@ class OwnerPiiAuditService
         'owner_gender',
         'owner_contact',
         'nid',
+        'current_password',
         'password',
         'pin',
         'pii_pin',

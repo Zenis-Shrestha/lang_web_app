@@ -25,6 +25,23 @@
                             <p class="mb-0">
                                 {{ __('Access lasts five minutes and applies to the list and Building Details pages. Users with building-edit permission may also edit owner PII. Access will be recorded in the security audit log.') }}
                             </p>
+                            <div class="form-group mt-3 mb-0">
+                                <label for="current_password">
+                                    {{ __('Current Password') }}
+                                </label>
+                                <input id="current_password" name="current_password" type="password"
+                                    class="form-control @error('current_password') is-invalid @enderror"
+                                    required maxlength="255" autocomplete="current-password"
+                                    aria-describedby="current-password-help">
+                                <small id="current-password-help" class="form-text text-muted">
+                                    {{ __('Re-enter your login password to confirm access. The password is not stored.') }}
+                                </small>
+                                @error('current_password')
+                                    <div class="invalid-feedback d-block">
+                                        {{ $message }}
+                                    </div>
+                                @enderror
+                            </div>
                         </div>
                         <div class="modal-footer">
                             <button type="button" class="btn btn-secondary" data-dismiss="modal">
@@ -301,6 +318,10 @@
     <script>
         $.fn.dataTable.ext.errMode = 'throw';
         $(function() {
+
+            @if ($errors->has('current_password'))
+                $('#reveal-owner-pii-list-modal').modal('show');
+            @endif
 
             $('#pii-list-unlock-form').on('submit', function(e) {
                 var form = $(this);
