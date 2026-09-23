@@ -3,6 +3,15 @@
 
 
 @section('content')
+    @php
+        $piiExportUser = auth()->user();
+        $canExportOwnerPii = $piiExportUser
+            && $piiExportUser->can('List Building Structures')
+            && $piiExportUser->can('View Owner PII')
+            && $piiExportUser->can('Unlock Owner PII')
+            && $piiExportUser->can('Export Owner PII');
+    @endphp
+
     @if (!$piiListUnlocked && $canUnlockOwnerPiiList)
         <div class="modal fade" id="reveal-owner-pii-list-modal" tabindex="-1" role="dialog"
             aria-labelledby="reveal-owner-pii-list-title" aria-hidden="true">
@@ -57,6 +66,72 @@
         </div>
     @endif
 
+    @if ($canExportOwnerPii)
+        <div class="modal fade" id="export-owner-pii-modal" tabindex="-1" role="dialog"
+            aria-labelledby="export-owner-pii-title" aria-hidden="true">
+            <div class="modal-dialog" role="document">
+                <div class="modal-content">
+                    <form id="owner-pii-export-form" method="POST"
+                        action="{{ route('owner-pii.export') }}">
+                        @csrf
+                        <div class="modal-header">
+                            <h5 class="modal-title" id="export-owner-pii-title">
+                                {{ __('Export Owner PII') }}
+                            </h5>
+                            <button type="button" class="close" data-dismiss="modal"
+                                aria-label="{{ __('Close') }}">
+                                <span aria-hidden="true">&times;</span>
+                            </button>
+                        </div>
+                        <div class="modal-body">
+                            <div class="alert alert-warning">
+                                {{ __('The downloaded CSV contains sensitive owner information. Handle it securely and delete it when it is no longer required.') }}
+                            </div>
+                            <div class="form-group">
+                                <label for="bin_file">{{ __('BIN List CSV') }}</label>
+                                <input id="bin_file" type="file" accept=".csv,text/csv"
+                                    class="form-control-file @if ($errors->has('bin_file') || $errors->has('bin_csv')) is-invalid @endif"
+                                    required>
+                                <input id="bin_csv" name="bin_csv" type="hidden" value="">
+                                <small class="form-text text-muted">
+                                    {{ __('Upload a CSV containing a bin header and one BIN per row.') }}
+                                </small>
+                                <div id="bin-file-validation" class="small mt-1" role="status"
+                                    aria-live="polite"></div>
+                                @error('bin_file')
+                                    <div class="invalid-feedback d-block">{{ $message }}</div>
+                                @enderror
+                                @error('bin_csv')
+                                    <div class="invalid-feedback d-block">{{ $message }}</div>
+                                @enderror
+                            </div>
+                            <div class="form-group mb-0">
+                                <label for="export_password">{{ __('Current Password') }}</label>
+                                <input id="export_password" name="export_password" type="password"
+                                    class="form-control @error('export_password') is-invalid @enderror"
+                                    required maxlength="255" autocomplete="current-password">
+                                <small class="form-text text-muted">
+                                    {{ __('Re-enter your login password. It is verified but never stored.') }}
+                                </small>
+                                @error('export_password')
+                                    <div class="invalid-feedback d-block">{{ $message }}</div>
+                                @enderror
+                            </div>
+                        </div>
+                        <div class="modal-footer">
+                            <button type="button" class="btn btn-secondary" data-dismiss="modal">
+                                {{ __('Cancel') }}
+                            </button>
+                            <button id="owner-pii-export-submit" type="submit" class="btn btn-danger" disabled>
+                                {{ __('Export Owner PII') }}
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    @endif
+
     <div class="modal fade" id="containmentsModal" tabindex="-1" role="dialog" aria-labelledby="containmentsModalLabel"
         aria-hidden="true">
         <div class="modal-dialog modal-dialog-centered" role="document">
@@ -90,6 +165,12 @@
             @can('Export Building Structures')
                 <a href="#" id="export-kml" class="btn btn-info">{{ __('Export to KML') }}</a>
             @endcan
+            @if ($canExportOwnerPii)
+                <button type="button" class="btn btn-danger" data-toggle="modal"
+                    data-target="#export-owner-pii-modal">
+                    {{ __('Export Owner PII') }}
+                </button>
+            @endif
 
             @if ($piiListUnlocked)
                 <form id="pii-list-lock-form" method="POST" action="{{ route('owner-pii.lock') }}"
@@ -322,6 +403,233 @@
             @if ($errors->has('current_password'))
                 $('#reveal-owner-pii-list-modal').modal('show');
             @endif
+
+            @if ($errors->has('bin_file') || $errors->has('bin_csv') || $errors->has('export_password'))
+                $('#export-owner-pii-modal').modal('show');
+            @endif
+
+            var ownerPiiCsvIsValid = false;
+            var ownerPiiMaxFileBytes = {{ max(1, (int) config('pii.export.max_file_kb', 2048)) * 1024 }};
+            var ownerPiiMaxBins = {{ max(1, (int) config('pii.export.max_bins', 5000)) }};
+
+            function updateOwnerPiiExportButton() {
+                var passwordPresent = $('#export_password').val().length > 0;
+                $('#owner-pii-export-submit').prop(
+                    'disabled',
+                    !ownerPiiCsvIsValid || !passwordPresent
+                );
+            }
+
+            function showOwnerPiiCsvStatus(message, valid) {
+                $('#bin-file-validation')
+                    .toggleClass('text-success', valid)
+                    .toggleClass('text-danger', !valid)
+                    .text(message);
+            }
+
+            function parseOwnerPiiCsvLine(line) {
+                var values = [];
+                var value = '';
+                var quoted = false;
+
+                for (var index = 0; index < line.length; index++) {
+                    var character = line.charAt(index);
+
+                    if (character === '"') {
+                        if (quoted && line.charAt(index + 1) === '"') {
+                            value += '"';
+                            index++;
+                        } else {
+                            quoted = !quoted;
+                        }
+                    } else if (character === ',' && !quoted) {
+                        values.push(value);
+                        value = '';
+                    } else {
+                        value += character;
+                    }
+                }
+
+                values.push(value);
+                return values;
+            }
+
+            function validateOwnerPiiCsv(csvText) {
+                var lines = csvText.replace(/^\uFEFF/, '').split(/\r?\n/);
+                var header = parseOwnerPiiCsvLine(lines.shift() || '')
+                    .map(function(value) { return value.trim().toLowerCase(); });
+                var binIndex = header.indexOf('bin');
+
+                if (binIndex === -1) {
+                    return { valid: false, message: "{{ __('The CSV must contain a bin header.') }}" };
+                }
+
+                var uniqueBins = {};
+                var binCount = 0;
+
+                for (var rowIndex = 0; rowIndex < lines.length; rowIndex++) {
+                    if (lines[rowIndex].trim() === '') {
+                        continue;
+                    }
+
+                    var row = parseOwnerPiiCsvLine(lines[rowIndex]);
+                    var bin = (row[binIndex] || '').trim().toUpperCase();
+
+                    if (!bin || bin.length > 100 || !/^[A-Z0-9_-]+$/.test(bin)) {
+                        return {
+                            valid: false,
+                            message: "{{ __('Invalid BIN on CSV row') }}" + ' ' + (rowIndex + 2) + '.'
+                        };
+                    }
+
+                    if (!uniqueBins[bin]) {
+                        uniqueBins[bin] = true;
+                        binCount++;
+                    }
+
+                    if (binCount > ownerPiiMaxBins) {
+                        return {
+                            valid: false,
+                            message: "{{ __('The CSV contains too many unique BIN values.') }}"
+                        };
+                    }
+                }
+
+                if (binCount === 0) {
+                    return { valid: false, message: "{{ __('The CSV does not contain any BIN values.') }}" };
+                }
+
+                return {
+                    valid: true,
+                    message: binCount + " {{ __('unique BIN values validated.') }}"
+                };
+            }
+
+            $('#bin_file').on('change', function() {
+                var file = this.files && this.files.length ? this.files[0] : null;
+                var reader;
+
+                ownerPiiCsvIsValid = false;
+                $('#bin_csv').val('');
+                updateOwnerPiiExportButton();
+
+                if (!file) {
+                    showOwnerPiiCsvStatus("{{ __('Select a CSV file.') }}", false);
+                    return;
+                }
+
+                if (!/\.csv$/i.test(file.name)) {
+                    showOwnerPiiCsvStatus("{{ __('The BIN list must be a CSV file.') }}", false);
+                    return;
+                }
+
+                if (file.size > ownerPiiMaxFileBytes) {
+                    showOwnerPiiCsvStatus("{{ __('The BIN list CSV is too large.') }}", false);
+                    return;
+                }
+
+                reader = new FileReader();
+                reader.onload = function(event) {
+                    var csvText = String(event.target.result || '');
+                    var result = validateOwnerPiiCsv(csvText);
+
+                    ownerPiiCsvIsValid = result.valid;
+                    $('#bin_csv').val(result.valid ? csvText : '');
+                    showOwnerPiiCsvStatus(result.message, result.valid);
+                    updateOwnerPiiExportButton();
+                };
+                reader.onerror = function() {
+                    showOwnerPiiCsvStatus("{{ __('The BIN list CSV could not be read.') }}", false);
+                    updateOwnerPiiExportButton();
+                };
+                reader.readAsText(file);
+            });
+
+            $('#export_password').on('input', updateOwnerPiiExportButton);
+
+            $('#owner-pii-export-form').on('submit', function(e) {
+                e.preventDefault();
+                var form = $(this);
+
+                if (!ownerPiiCsvIsValid || form.data('submitting')) {
+                    return;
+                }
+
+                form.data('submitting', true);
+                $('#owner-pii-export-submit')
+                    .prop('disabled', true)
+                    .text("{{ __('Exporting...') }}");
+
+                fetch(form.attr('action'), {
+                    method: 'POST',
+                    body: new FormData(form[0]),
+                    credentials: 'same-origin',
+                    headers: {
+                        'Accept': 'application/json, text/csv',
+                        'X-Requested-With': 'XMLHttpRequest'
+                    }
+                }).then(function(response) {
+                    if (!response.ok) {
+                        return response.json().catch(function() {
+                            return { message: "{{ __('The owner PII export could not be generated.') }}" };
+                        }).then(function(error) {
+                            throw new Error(error.message || "{{ __('The owner PII export could not be generated.') }}");
+                        });
+                    }
+
+                    var disposition = response.headers.get('Content-Disposition') || '';
+                    var filenameMatch = disposition.match(/filename\*?=(?:UTF-8''|["'])?([^"';]+)/i);
+                    var filename = filenameMatch
+                        ? decodeURIComponent(filenameMatch[1].replace(/["']/g, ''))
+                        : 'owner-pii-export.csv';
+
+                    return response.blob().then(function(blob) {
+                        return { blob: blob, filename: filename };
+                    });
+                }).then(function(download) {
+                    var downloadUrl = window.URL.createObjectURL(download.blob);
+                    var link = document.createElement('a');
+
+                    link.href = downloadUrl;
+                    link.download = download.filename;
+                    document.body.appendChild(link);
+                    link.click();
+                    document.body.removeChild(link);
+                    window.setTimeout(function() {
+                        window.URL.revokeObjectURL(downloadUrl);
+                    }, 1000);
+
+                    $('#export-owner-pii-modal').modal('hide');
+                    form[0].reset();
+                    form.data('submitting', false);
+                    ownerPiiCsvIsValid = false;
+                    $('#bin_csv').val('');
+                    $('#bin-file-validation').text('')
+                        .removeClass('text-success text-danger');
+                    $('#owner-pii-export-submit')
+                        .text("{{ __('Export Owner PII') }}");
+                    updateOwnerPiiExportButton();
+
+                    Swal.fire({
+                        title: "{{ __('Owner PII exported successfully') }}",
+                        text: "{{ __('The CSV was downloaded. Store it securely and delete it when it is no longer required.') }}",
+                        icon: 'success',
+                        confirmButtonColor: '#3085d6'
+                    });
+                }).catch(function(error) {
+                    form.data('submitting', false);
+                    $('#owner-pii-export-submit')
+                        .text("{{ __('Export Owner PII') }}");
+                    updateOwnerPiiExportButton();
+
+                    Swal.fire({
+                        title: "{{ __('Export failed') }}",
+                        text: error.message,
+                        icon: 'error',
+                        confirmButtonColor: '#3085d6'
+                    });
+                });
+            });
 
             $('#pii-list-unlock-form').on('submit', function(e) {
                 var form = $(this);
@@ -593,19 +901,65 @@
                     "&date_to=" + date_to;
             });
 
+            var buildingNonPiiExportProperties = [
+                'bin',
+                'building_associated_to',
+                'ward',
+                'road_code',
+                'house_number',
+                'house_locality',
+                'tax_code',
+                'structure_type_name',
+                'surveyed_date',
+                'construction_year',
+                'floor_count',
+                'functional_use_name',
+                'use_category_name',
+                'office_business_name',
+                'household_served',
+                'male_population',
+                'female_population',
+                'other_population',
+                'population_served',
+                'diff_abled_male_pop',
+                'diff_abled_female_pop',
+                'diff_abled_others_pop',
+                'lic_community',
+                'water_source_name',
+                'water_customer_id',
+                'watersupply_pipe_code',
+                'well_presence_status',
+                'distance_from_well',
+                'swm_customer_id',
+                'toilet_status',
+                'toilet_count',
+                'household_with_private_toilet',
+                'population_with_private_toilet',
+                'building_sanitation_system',
+                'sewer_code',
+                'drain_code',
+                'desludging_vehicle_accessible',
+                'estimated_area',
+                'toilet_name',
+                'verification_status',
+                'geom'
+            ].join(',');
+
             $("#export-shp").on("click", function(e) {
                 e.preventDefault();
                 var cql_param = getCQLParams();
                 window.location.href =
                     "{{ Config::get('constants.GEOSERVER_URL') }}wfs?service=WFS&version=1.0.0&request=GetFeature&authkey={{ Config::get('constants.AUTH_KEY') }}&typeName={{ Config::get('constants.GEOSERVER_WORKSPACE') }}:buildings_layer+&CQL_FILTER=" +
-                    cql_param + " &outputFormat=SHAPE-ZIP&format_options=filename:Buildings.zip";
+                    cql_param + "&PROPERTYNAME=" + encodeURIComponent(buildingNonPiiExportProperties) +
+                    "&outputFormat=SHAPE-ZIP&format_options=filename:Buildings.zip";
             });
             $("#export-kml").on("click", function(e) {
                 e.preventDefault();
                 var cql_param = getCQLParams();
                 window.location.href =
                     "{{ Config::get('constants.GEOSERVER_URL') }}wfs?service=WFS&version=1.0.0&request=GetFeature&authkey={{ Config::get('constants.AUTH_KEY') }}&typeName={{ Config::get('constants.GEOSERVER_WORKSPACE') }}:buildings_layer+&CQL_FILTER=" +
-                    cql_param + " &outputFormat=KML&format_options=filename:Buildings.kml";
+                    cql_param + "&PROPERTYNAME=" + encodeURIComponent(buildingNonPiiExportProperties) +
+                    "&outputFormat=KML&format_options=filename:Buildings.kml";
 
             });
 

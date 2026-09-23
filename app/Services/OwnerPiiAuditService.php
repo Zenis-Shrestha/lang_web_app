@@ -14,6 +14,7 @@ class OwnerPiiAuditService
         'owner_contact',
         'nid',
         'current_password',
+        'export_password',
         'password',
         'pin',
         'pii_pin',

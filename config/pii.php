@@ -34,5 +34,10 @@ return [
 
     'unlock_minutes' => 5,
 
+    'export' => [
+        'max_bins' => (int) env('PII_EXPORT_MAX_BINS', 5000),
+        'max_file_kb' => (int) env('PII_EXPORT_MAX_FILE_KB', 2048),
+    ],
+
     'audit_enabled' => env('PII_AUDIT_ENABLED', true),
 ];

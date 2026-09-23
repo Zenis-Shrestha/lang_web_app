@@ -683,10 +683,6 @@ class BuildingStructureService
         $date_from = isset($_GET['date_from']) ? $_GET['date_from'] : null;
         $columns = [
             __('BIN'),
-            __('Owner Name'),
-            __('Owner NID'),
-            __('Owner Gender'),
-            __('Owner Contact Number'),
             __('BIN of Main Building'),
             __('Ward'),
             __('Road Code'),
@@ -741,7 +737,6 @@ class BuildingStructureService
                  ->whereNull('bt.deleted_at'); // Check if deleted_at is NULL
         })
         ->LeftJoin('fsm.toilets as t', 'bt.toilet_id', '=', 't.id') // Added join with fsm.toilets
-        ->LeftJoin('building_info.owners', 'b.bin', '=', 'owners.bin')
         ->select(
             'b.bin',
             'b.tax_code',
@@ -780,10 +775,6 @@ class BuildingStructureService
             'b.diff_abled_female_pop',
             'b.diff_abled_others_pop',
             'b.verification_status',
-            'owners.owner_name',
-            'owners.owner_gender',
-            'owners.owner_contact',
-            'owners.nid',
             'lic.community_name as community_name',
             'b.low_income_hh',
             'b.watersupply_pipe_code',
@@ -860,7 +851,6 @@ class BuildingStructureService
                  ->whereNull('bt.deleted_at'); // Check if deleted_at is NULL
         })
         ->LeftJoin('fsm.toilets as t', 'bt.toilet_id', '=', 't.id') // Added join with fsm.toilets
-        ->join('building_info.owners', 'b.bin', '=', 'owners.bin')
         ->select(
             'b.bin',
             'b.tax_code',
@@ -899,10 +889,6 @@ class BuildingStructureService
             'b.diff_abled_female_pop',
             'b.diff_abled_others_pop',
             'b.verification_status',
-            'owners.owner_name',
-            'owners.owner_gender',
-            'owners.owner_contact',
-            'owners.nid',
             'lic.community_name as community_name',
             'b.low_income_hh',
             'b.watersupply_pipe_code',
@@ -915,10 +901,6 @@ class BuildingStructureService
         foreach ($buildings as $building) {
             $values = [];
             $values[] = $building->bin;
-            $values[] = $building->owner_name;
-            $values[] = $building->nid;
-            $values[] = $building->owner_gender;
-            $values[] = $building->owner_contact;
             $values[] = $building->building_associated_to;
             $values[] = $building->ward;
             $values[] = $building->road_code;

@@ -98,6 +98,9 @@ Route::group([
     Route::post('owner-pii/unlock-list', 'OwnerPiiAccessController@unlockList')
         ->middleware('throttle:5,1')
         ->name('owner-pii.unlock-list');
+    Route::post('owner-pii/export', 'OwnerPiiExportController@export')
+        ->middleware('throttle:5,1')
+        ->name('owner-pii.export');
     Route::post('owner-pii/lock', 'OwnerPiiAccessController@lock')->name('owner-pii.lock');
     Route::get('buildings/{building:public_id}/listContainments', 'BuildingController@listContainments')->name('buildings.listContainments');
     Route::resource('buildings', 'BuildingController')->parameters(['buildings' => 'building']);
