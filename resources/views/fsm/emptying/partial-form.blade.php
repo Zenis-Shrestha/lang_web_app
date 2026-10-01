@@ -22,7 +22,7 @@ Developed By: Innovative Solution Pvt. Ltd. (ISPL)   -->
                     @if(empty($application))
                     {!! Form::text('customer_name',null,['class' => 'form-control', 'placeholder' => "Customer's Name"]) !!}
                     @else
-                        {!! Form::label(null,$application->customer_name,['class' => 'form-control']) !!}
+                        {!! Form::label(null,$application->applicant_name,['class' => 'form-control']) !!}
                     @endif
                 </div>
             </div>
@@ -32,7 +32,7 @@ Developed By: Innovative Solution Pvt. Ltd. (ISPL)   -->
                     @if(empty($application))
                     {!! Form::select('customer_gender',["M"=>"M","F"=>"F","O"=>"O"],null,['class' => 'form-control', 'placeholder' => "Customer's Gender", 'id'=>'customer_gender']) !!}
                     @else
-                        {!! Form::label(null,$application->customer_gender,['class' => 'form-control']) !!}
+                        {!! Form::label(null,$application->applicant_gender,['class' => 'form-control']) !!}
                     @endif
                 </div>
             </div>
@@ -42,7 +42,7 @@ Developed By: Innovative Solution Pvt. Ltd. (ISPL)   -->
                     @if(empty($application))
                     {!! Form::number('contact_no',null,['class' => 'form-control', 'placeholder' => 'Contact']) !!}
                     @else
-                        {!! Form::label(null,$application->contact_no,['class' => 'form-control']) !!}
+                        {!! Form::label(null,$application->applicant_contact,['class' => 'form-control']) !!}
                     @endif
                 </div>
             </div>

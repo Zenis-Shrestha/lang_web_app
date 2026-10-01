@@ -11,6 +11,53 @@ Developed By: Innovative Solution Pvt. Ltd. (ISPL)   -->
     @include('layouts.components.error-list')
     @include('layouts.components.success-alert')
     @include('layouts.components.error-alert')
+
+    @if ($canRevealOwnerPii)
+        <button id="application-owner-pii-reveal-button" type="button"
+            class="btn btn-info btn-sm float-right" style="display: none"
+            data-toggle="modal" data-target="#application-owner-pii-reveal-modal">
+            {{ __('View PII Information') }}
+        </button>
+
+        <div class="modal fade" id="application-owner-pii-reveal-modal" tabindex="-1" role="dialog"
+            aria-labelledby="application-owner-pii-reveal-title" aria-hidden="true">
+            <div class="modal-dialog" role="document">
+                <div class="modal-content">
+                    <form id="application-owner-pii-reveal-form" method="POST"
+                        action="{{ route('application-pii.reveal-for-create') }}">
+                        @csrf
+                        <div class="modal-header">
+                            <h5 class="modal-title" id="application-owner-pii-reveal-title">
+                                {{ __('View Owner PII') }}
+                            </h5>
+                            <button type="button" class="close" data-dismiss="modal" aria-label="{{ __('Close') }}">
+                                <span aria-hidden="true">&times;</span>
+                            </button>
+                        </div>
+                        <div class="modal-body">
+                            <p>
+                                {{ __('Re-enter your login password to reveal owner information for the selected BIN. The password is verified but never stored.') }}
+                            </p>
+                            <div class="form-group mb-0">
+                                <label for="application_owner_pii_password">{{ __('Current Password') }}</label>
+                                <input id="application_owner_pii_password" name="current_password" type="password"
+                                    class="form-control" required maxlength="255" autocomplete="current-password">
+                            </div>
+                        </div>
+                        <div class="modal-footer">
+                            <button type="button" class="btn btn-secondary" data-dismiss="modal">
+                                {{ __('Cancel') }}
+                            </button>
+                            <button id="application-owner-pii-reveal-submit" type="submit" class="btn btn-info">
+                                {{ __('View PII Information') }}
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    @endif
+
     {!! Form::open(['url' => route('application.store'), 'class' => 'form-horizontal', 'id' => 'create_application_form']) !!}
     <input
         type="hidden"
@@ -33,9 +80,17 @@ Developed By: Innovative Solution Pvt. Ltd. (ISPL)   -->
     const sessionServiceProviderId = @json(
         session('service_provider_id') ?? old('service_provider_id')
     );
+    const canRevealOwnerPii = @json((bool) $canRevealOwnerPii);
+    const ownerPiiMask = '********';
+    let ownerPiiRevealed = false;
 
     function autoFillDetails() {
         $(document).ready(function() {
+            if (!ownerPiiRevealed) {
+                $("input[name='autofill']").prop('checked', false);
+                return;
+            }
+
             if ($("input[name='autofill']:checked").val() === 'on') {
                 $("input[name='applicant_name']").val($("input[name=customer_name]").val());
                 $("#applicant_gender").val($("#customer_gender").val());
@@ -58,6 +113,9 @@ Developed By: Innovative Solution Pvt. Ltd. (ISPL)   -->
         const hasValue = $.trim(String(fieldValue)) !== '';
 
         $(`input[type="hidden"][name="${hiddenName}"]`).remove();
+        if (selector === '#customer_gender') {
+            $('#customer_gender option[data-pii-mask="true"]').remove();
+        }
         $(selector).val(fieldValue).prop('disabled', hasValue);
 
         if (hasValue) {
@@ -67,6 +125,30 @@ Developed By: Innovative Solution Pvt. Ltd. (ISPL)   -->
                 value: fieldValue
             }).insertAfter(selector);
         }
+    }
+
+    function showLockedOwnerFields(showRevealButton) {
+        ownerPiiRevealed = false;
+        $('input[type="hidden"][name="customer_name"], ' +
+            'input[type="hidden"][name="customer_gender"], ' +
+            'input[type="hidden"][name="customer_contact"]').remove();
+
+        $('#customer_name').val(ownerPiiMask).prop('disabled', true);
+        $('#customer_contact').val(ownerPiiMask).prop('disabled', true);
+        $('#customer_gender option[data-pii-mask="true"]').remove();
+        $('#customer_gender')
+            .append($('<option>', {
+                value: ownerPiiMask,
+                text: ownerPiiMask,
+                selected: true,
+                'data-pii-mask': 'true'
+            }))
+            .prop('disabled', true);
+
+        $('#autofill').prop('checked', false).prop('disabled', true);
+        $('#application-owner-pii-reveal-button').toggle(
+            Boolean(showRevealButton && canRevealOwnerPii && $('#bin').val())
+        );
     }
 
     function lockConfirmAddressFields() {
@@ -131,15 +213,19 @@ Developed By: Innovative Solution Pvt. Ltd. (ISPL)   -->
         $('#containment_id').val('');
         $('#ward').val('');
         $('#customer_name').val('');
+        $('#customer_gender option[data-pii-mask="true"]').remove();
         $('#customer_gender').val('');
         $('#customer_contact').val('');
+        $('#customer_name, #customer_gender, #customer_contact').prop('disabled', false);
         $("input[name='applicant_name']").val('');
         $("#applicant_gender").val('');
         $("input[name='applicant_contact']").val('');
         $("input[name='applicant_name']").removeAttr('disabled');
         $("#applicant_gender").removeAttr('disabled');
         $("input[name='applicant_contact']").removeAttr('disabled');
-        $("input[name='autofill']").prop('checked', false);
+        $("input[name='autofill']").prop('checked', false).prop('disabled', true);
+        $('#application-owner-pii-reveal-button').hide();
+        ownerPiiRevealed = false;
     }
 
     function onAddressChange() {
@@ -165,6 +251,7 @@ Developed By: Innovative Solution Pvt. Ltd. (ISPL)   -->
             });
 
             if ($('#bin').val() != '') {
+                showLockedOwnerFields(false);
                 displayAjaxLoader();
                 $.ajax({
                     url: "{{ route('application.get-building-details') }}",
@@ -178,30 +265,18 @@ Developed By: Innovative Solution Pvt. Ltd. (ISPL)   -->
                                 containmentOptions += `<option value="${containment}">${containment}</option>`;
                             });
 
-                            setOwnerFieldFromLookup(
-                                '#customer_name',
-                                'customer_name',
-                                res.customer_name
-                            );
-                            setOwnerFieldFromLookup(
-                                '#customer_gender',
-                                'customer_gender',
-                                res.customer_gender
-                            );
-                            setOwnerFieldFromLookup(
-                                '#customer_contact',
-                                'customer_contact',
-                                res.customer_contact
-                            );
+                            // Address lookup is intentionally non-PII. Owner
+                            // values remain masked until the protected button
+                            // performs a one-record, password-confirmed lookup.
+                            showLockedOwnerFields(true);
                             $('#household_served').val(res.household_served).attr('disabled', true);
                             $('#population_served').val(res.population_served).attr('disabled', true);
                             $('#toilet_count').val(res.toilet_count).attr('disabled', true);
                             $('#ward').val(res.ward);
 
 
-                            localStorage.setItem("selectedOwnerName", res.customer_name);
-                            localStorage.setItem("selectedOwnerGender", res.customer_gender);
-                            localStorage.setItem("selectedOwnerContact", res.customer_contact);
+                            // Customer PII must remain only in the current form;
+                            // persistent browser storage is intentionally forbidden.
                             localStorage.setItem("selectedHouseholdServed", res.household_served);
                             localStorage.setItem("selectedPopulationServed", res.population_served);
                             localStorage.setItem("selectedToiletCount", res.toilet_count);
@@ -269,6 +344,113 @@ Developed By: Innovative Solution Pvt. Ltd. (ISPL)   -->
     $(document).ready(function() {
         const today = new Date().toISOString().split('T')[0];
         document.getElementById('proposed_emptying_date').setAttribute('min', today);
+
+        const ownerPiiButton = $('#application-owner-pii-reveal-button');
+        const ownerCardHeader = $('#customer_name').closest('.card').find('.card-header').first();
+
+        if (ownerPiiButton.length && ownerCardHeader.length) {
+            ownerCardHeader.append(ownerPiiButton.detach());
+        }
+
+        $('#autofill').prop('disabled', true);
+
+        $('#application-owner-pii-reveal-form').on('submit', function(event) {
+            event.preventDefault();
+
+            const form = $(this);
+            const selectedBin = String($('#bin').val() || '');
+
+            if (!selectedBin || form.data('submitting')) {
+                return;
+            }
+
+            const formData = new FormData(form[0]);
+            formData.append('bin', selectedBin);
+            form.data('submitting', true);
+            $('#application-owner-pii-reveal-submit')
+                .prop('disabled', true)
+                .text("{{ __('Revealing...') }}");
+
+            fetch(form.attr('action'), {
+                method: 'POST',
+                body: formData,
+                credentials: 'same-origin',
+                headers: {
+                    'Accept': 'application/json',
+                    'X-Requested-With': 'XMLHttpRequest'
+                }
+            }).then(function(response) {
+                return response.json().catch(function() {
+                    return {
+                        message: "{{ __('Owner information could not be revealed.') }}"
+                    };
+                }).then(function(payload) {
+                    if (!response.ok) {
+                        let message = payload.message;
+
+                        if (payload.errors) {
+                            const keys = Object.keys(payload.errors);
+                            if (keys.length && payload.errors[keys[0]].length) {
+                                message = payload.errors[keys[0]][0];
+                            }
+                        }
+
+                        throw new Error(message ||
+                            "{{ __('Owner information could not be revealed.') }}");
+                    }
+
+                    return payload;
+                });
+            }).then(function(payload) {
+                // Discard a late response if the user changed the BIN while
+                // the password-confirmed lookup was in flight.
+                if (String($('#bin').val() || '') !== selectedBin) {
+                    throw new Error("{{ __('The selected BIN changed. Please try again.') }}");
+                }
+
+                setOwnerFieldFromLookup(
+                    '#customer_name',
+                    'customer_name',
+                    payload.customer_name
+                );
+                setOwnerFieldFromLookup(
+                    '#customer_gender',
+                    'customer_gender',
+                    payload.customer_gender
+                );
+                setOwnerFieldFromLookup(
+                    '#customer_contact',
+                    'customer_contact',
+                    payload.customer_contact
+                );
+
+                ownerPiiRevealed = true;
+                $('#autofill').prop('disabled', false);
+                $('#application-owner-pii-reveal-button').hide();
+                $('#application-owner-pii-reveal-modal').modal('hide');
+                form[0].reset();
+
+                Swal.fire({
+                    title: "{{ __('Owner PII revealed') }}",
+                    text: "{{ __('Owner information was loaded for the selected BIN only.') }}",
+                    icon: 'success',
+                    confirmButtonColor: '#3085d6'
+                });
+            }).catch(function(error) {
+                Swal.fire({
+                    title: "{{ __('Unable to reveal owner PII') }}",
+                    text: error.message,
+                    icon: 'error',
+                    confirmButtonColor: '#3085d6'
+                });
+            }).finally(function() {
+                form.data('submitting', false);
+                $('#application-owner-pii-reveal-submit')
+                    .prop('disabled', false)
+                    .text("{{ __('View PII Information') }}");
+                $('#application_owner_pii_password').val('');
+            });
+        });
 
         $('#bin').prepend('<option selected=""></option>').select2({
             ajax: {
@@ -440,9 +622,6 @@ Developed By: Innovative Solution Pvt. Ltd. (ISPL)   -->
             const selectedBINValue = localStorage.getItem("selectedBINValue");
             
             const selectedBINText = localStorage.getItem("selectedBINText");
-            const selectedOwnerName = localStorage.getItem("selectedOwnerName");
-            const selectedOwnerGender = localStorage.getItem("selectedOwnerGender");
-            const selectedOwnerContact = localStorage.getItem("selectedOwnerContact");
             const selectedHouseholdServed = localStorage.getItem("selectedHouseholdServed");
             const selectedPopulationServed = localStorage.getItem("selectedPopulationServed");
             const selectedToiletCount = localStorage.getItem("selectedToiletCount");
@@ -457,21 +636,8 @@ Developed By: Innovative Solution Pvt. Ltd. (ISPL)   -->
             // Populate form fields with localStorage data
             if (selectedRoadCode) $('#road_code').val(selectedRoadCode);
             if (selectedBINValue) $('#bin').val(selectedBINValue);
-            setOwnerFieldFromLookup(
-                '#customer_name',
-                'customer_name',
-                selectedOwnerName
-            );
-            setOwnerFieldFromLookup(
-                '#customer_gender',
-                'customer_gender',
-                selectedOwnerGender
-            );
-            setOwnerFieldFromLookup(
-                '#customer_contact',
-                'customer_contact',
-                selectedOwnerContact
-            );
+            // Customer PII is deliberately not restored from localStorage.
+            // The user must repeat the authorized BIN lookup when needed.
             if (selectedHouseholdServed) $('#household_served').val(selectedHouseholdServed).prop('disabled', true);
             if (selectedPopulationServed) $('#population_served').val(selectedPopulationServed).prop('disabled', true);
             if (selectedToiletCount) $('#toilet_count').val(selectedToiletCount).prop('disabled', true);

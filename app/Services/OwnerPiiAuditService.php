@@ -13,6 +13,10 @@ class OwnerPiiAuditService
         'owner_gender',
         'owner_contact',
         'nid',
+        // Application customer PII is never permitted in audit context.
+        'customer_name',
+        'customer_gender',
+        'customer_contact',
         'current_password',
         'export_password',
         'password',

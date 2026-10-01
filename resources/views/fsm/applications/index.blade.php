@@ -10,6 +10,99 @@ Developed By: Innovative Solution Pvt. Ltd. (ISPL)   -->
     </style>
 @endpush
 @section('content')
+    @if (!$customerPiiListUnlocked && $canUnlockCustomerPii)
+        <div class="modal fade" id="application-customer-pii-modal" tabindex="-1" role="dialog"
+            aria-labelledby="application-customer-pii-title" aria-hidden="true">
+            <div class="modal-dialog" role="document">
+                <div class="modal-content">
+                    <form method="POST" action="{{ route('application-pii.unlock-list') }}">
+                        @csrf
+                        <div class="modal-header">
+                            <h5 class="modal-title" id="application-customer-pii-title">
+                                {{ __('Reveal Application Customer PII') }}
+                            </h5>
+                            <button type="button" class="close" data-dismiss="modal" aria-label="{{ __('Close') }}">
+                                <span aria-hidden="true">&times;</span>
+                            </button>
+                        </div>
+                        <div class="modal-body">
+                            <p>{{ __('Customer name, gender, and contact will be available for five minutes. Applicant fields are outside this encryption scope.') }}</p>
+                            <div class="form-group mb-0">
+                                <label for="application_pii_password">{{ __('Current Password') }}</label>
+                                <input id="application_pii_password" name="current_password" type="password"
+                                    class="form-control @error('application_pii_password') is-invalid @enderror"
+                                    required maxlength="255" autocomplete="current-password">
+                                @error('application_pii_password')
+                                    <div class="invalid-feedback d-block">{{ $message }}</div>
+                                @enderror
+                            </div>
+                        </div>
+                        <div class="modal-footer">
+                            <button type="button" class="btn btn-secondary" data-dismiss="modal">{{ __('Cancel') }}</button>
+                            <button type="submit" class="btn btn-info">{{ __('Reveal for 5 Minutes') }}</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    @endif
+
+    @if ($canExportCustomerPii)
+        <div class="modal fade" id="application-customer-pii-export-modal" tabindex="-1" role="dialog"
+            aria-labelledby="application-customer-pii-export-title" aria-hidden="true">
+            <div class="modal-dialog" role="document">
+                <div class="modal-content">
+                    <form id="application-customer-pii-export-form" method="POST"
+                        action="{{ route('application-pii.export') }}">
+                        @csrf
+                        <div class="modal-header">
+                            <h5 class="modal-title" id="application-customer-pii-export-title">
+                                {{ __('Export Customer PII') }}
+                            </h5>
+                            <button type="button" class="close" data-dismiss="modal" aria-label="{{ __('Close') }}">
+                                <span aria-hidden="true">&times;</span>
+                            </button>
+                        </div>
+                        <div class="modal-body">
+                            <div class="alert alert-warning">
+                                {{ __('The downloaded CSV contains sensitive customer information. Handle it securely and delete it when it is no longer required.') }}
+                            </div>
+                            <div class="form-group">
+                                <label for="application_id_file">{{ __('Application ID List CSV') }}</label>
+                                <input id="application_id_file" type="file" accept=".csv,text/csv"
+                                    class="form-control-file" required>
+                                <input id="application_id_csv" name="application_id_csv" type="hidden" value="">
+                                <small class="form-text text-muted">
+                                    {{ __('Upload a CSV containing an application_id header and one Application ID per row.') }}
+                                </small>
+                                <div id="application-id-file-validation" class="small mt-1" role="status"
+                                    aria-live="polite"></div>
+                            </div>
+                            <div class="form-group mb-0">
+                                <label for="application_export_password">{{ __('Current Password') }}</label>
+                                <input id="application_export_password" name="application_export_password"
+                                    type="password" class="form-control" required maxlength="255"
+                                    autocomplete="current-password">
+                                <small class="form-text text-muted">
+                                    {{ __('Re-enter your login password. It is verified but never stored.') }}
+                                </small>
+                            </div>
+                        </div>
+                        <div class="modal-footer">
+                            <button type="button" class="btn btn-secondary" data-dismiss="modal">
+                                {{ __('Cancel') }}
+                            </button>
+                            <button id="application-customer-pii-export-submit" type="submit"
+                                class="btn btn-danger" disabled>
+                                {{ __('Export Customer PII') }}
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    @endif
+
     <div class="card">
         <div class="card-header">
             @if (!empty($createBtnLink) && !empty($createBtnTitle))
@@ -17,6 +110,25 @@ Developed By: Innovative Solution Pvt. Ltd. (ISPL)   -->
             @endif
             @if (!empty($exportBtnLink))
                 <a href="{{ $exportBtnLink }}" class="btn btn-info" id="export" onclick="exportToCsv(event)" >{{ __('Export to CSV') }}</a>
+            @endif
+            @if ($canExportCustomerPii)
+                <button type="button" class="btn btn-danger" data-toggle="modal"
+                    data-target="#application-customer-pii-export-modal">
+                    {{ __('Export Customer PII') }}
+                </button>
+            @endif
+            @if ($customerPiiListUnlocked)
+                <form id="application-pii-lock-form" method="POST"
+                    action="{{ route('application-pii.lock') }}" class="d-inline">
+                    @csrf
+                    <button type="submit" class="btn btn-warning">{{ __('Lock Customer PII') }}</button>
+                </form>
+                <span class="badge badge-success ml-1">{{ __('Customer PII revealed for this list') }}</span>
+            @elseif ($canUnlockCustomerPii)
+                <button type="button" class="btn btn-info" data-toggle="modal"
+                    data-target="#application-customer-pii-modal">
+                    {{ __('View PII Information') }}
+                </button>
             @endif
             <a class="btn btn-info float-right" id="headingOne" type="button" data-toggle="collapse"
                 data-target="#collapseOne" aria-expanded="true" aria-controls="collapseOne">
@@ -84,6 +196,9 @@ Developed By: Innovative Solution Pvt. Ltd. (ISPL)   -->
                                         @foreach ($filterFormFields as $formFieldGroup)
                                             <div class="form-group row">
                                                 @foreach ($formFieldGroup as $formField)
+                                                    @if ($formField->inputId === 'customer_name' && !$customerPiiListUnlocked)
+                                                        @continue
+                                                    @endif
                                                     {!! Form::label($formField->labelFor, $formField->label, ['class' => $formField->labelClass]) !!}
                                                     <div class="col-md-2">
                                                         @if ($formField->inputType === 'text')
@@ -199,6 +314,258 @@ Developed By: Innovative Solution Pvt. Ltd. (ISPL)   -->
 
 @push('scripts')
     <script>
+        @if ($errors->has('application_pii_password'))
+            $(function() {
+                $('#application-customer-pii-modal').modal('show');
+            });
+        @endif
+
+        @if ($canExportCustomerPii)
+            $(function() {
+                var applicationPiiCsvIsValid = false;
+                var applicationPiiMaxIds = {{ (int) config('pii.export.max_application_ids', 5000) }};
+                var applicationPiiMaxFileBytes = {{ (int) config('pii.export.max_file_kb', 2048) * 1024 }};
+
+                function showApplicationPiiCsvStatus(message, valid) {
+                    $('#application-id-file-validation')
+                        .text(message)
+                        .toggleClass('text-success', valid)
+                        .toggleClass('text-danger', !valid);
+                }
+
+                function updateApplicationPiiExportButton() {
+                    var hasPassword = $('#application_export_password').val().length > 0;
+
+                    $('#application-customer-pii-export-submit')
+                        .prop('disabled', !applicationPiiCsvIsValid || !hasPassword);
+                }
+
+                function parseApplicationPiiCsvLine(line) {
+                    var values = [];
+                    var value = '';
+                    var quoted = false;
+
+                    for (var index = 0; index < line.length; index++) {
+                        var character = line.charAt(index);
+
+                        if (character === '"') {
+                            if (quoted && line.charAt(index + 1) === '"') {
+                                value += '"';
+                                index++;
+                            } else {
+                                quoted = !quoted;
+                            }
+                        } else if (character === ',' && !quoted) {
+                            values.push(value);
+                            value = '';
+                        } else {
+                            value += character;
+                        }
+                    }
+
+                    values.push(value);
+                    return values;
+                }
+
+                function validateApplicationPiiCsv(csvText) {
+                    var lines = csvText.replace(/^\uFEFF/, '').split(/\r?\n/);
+                    var header = parseApplicationPiiCsvLine(lines.shift() || '')
+                        .map(function(value) { return value.trim().toLowerCase(); });
+                    var idIndex = header.indexOf('application_id');
+
+                    if (idIndex === -1) {
+                        return {
+                            valid: false,
+                            message: "{{ __('The CSV must contain an application_id header.') }}"
+                        };
+                    }
+
+                    var uniqueIds = {};
+                    var idCount = 0;
+
+                    for (var rowIndex = 0; rowIndex < lines.length; rowIndex++) {
+                        if (lines[rowIndex].trim() === '') {
+                            continue;
+                        }
+
+                        var row = parseApplicationPiiCsvLine(lines[rowIndex]);
+                        var id = (row[idIndex] || '').trim();
+
+                        if (!/^[1-9][0-9]*$/.test(id)) {
+                            return {
+                                valid: false,
+                                message: "{{ __('Invalid Application ID on CSV row') }}" + ' ' + (rowIndex + 2) + '.'
+                            };
+                        }
+
+                        if (!uniqueIds[id]) {
+                            uniqueIds[id] = true;
+                            idCount++;
+                        }
+
+                        if (idCount > applicationPiiMaxIds) {
+                            return {
+                                valid: false,
+                                message: "{{ __('The CSV contains too many unique Application IDs.') }}"
+                            };
+                        }
+                    }
+
+                    if (idCount === 0) {
+                        return {
+                            valid: false,
+                            message: "{{ __('The CSV does not contain any Application IDs.') }}"
+                        };
+                    }
+
+                    return {
+                        valid: true,
+                        message: idCount + " {{ __('unique Application IDs validated.') }}"
+                    };
+                }
+
+                $('#application_id_file').on('change', function() {
+                    var file = this.files && this.files.length ? this.files[0] : null;
+
+                    applicationPiiCsvIsValid = false;
+                    $('#application_id_csv').val('');
+                    updateApplicationPiiExportButton();
+
+                    if (!file) {
+                        showApplicationPiiCsvStatus("{{ __('Select a CSV file.') }}", false);
+                        return;
+                    }
+
+                    if (!/\.csv$/i.test(file.name)) {
+                        showApplicationPiiCsvStatus("{{ __('The Application ID list must be a CSV file.') }}", false);
+                        return;
+                    }
+
+                    if (file.size > applicationPiiMaxFileBytes) {
+                        showApplicationPiiCsvStatus("{{ __('The Application ID list CSV is too large.') }}", false);
+                        return;
+                    }
+
+                    var reader = new FileReader();
+                    reader.onload = function(event) {
+                        var csvText = String(event.target.result || '');
+                        var result = validateApplicationPiiCsv(csvText);
+
+                        applicationPiiCsvIsValid = result.valid;
+                        $('#application_id_csv').val(result.valid ? csvText : '');
+                        showApplicationPiiCsvStatus(result.message, result.valid);
+                        updateApplicationPiiExportButton();
+                    };
+                    reader.onerror = function() {
+                        showApplicationPiiCsvStatus(
+                            "{{ __('The Application ID list CSV could not be read.') }}",
+                            false
+                        );
+                        updateApplicationPiiExportButton();
+                    };
+                    reader.readAsText(file);
+                });
+
+                $('#application_export_password').on('input', updateApplicationPiiExportButton);
+
+                $('#application-customer-pii-export-form').on('submit', function(event) {
+                    event.preventDefault();
+                    var form = $(this);
+
+                    if (!applicationPiiCsvIsValid || form.data('submitting')) {
+                        return;
+                    }
+
+                    form.data('submitting', true);
+                    $('#application-customer-pii-export-submit')
+                        .prop('disabled', true)
+                        .text("{{ __('Exporting...') }}");
+
+                    fetch(form.attr('action'), {
+                        method: 'POST',
+                        body: new FormData(form[0]),
+                        credentials: 'same-origin',
+                        headers: {
+                            'Accept': 'application/json, text/csv',
+                            'X-Requested-With': 'XMLHttpRequest'
+                        }
+                    }).then(function(response) {
+                        if (!response.ok) {
+                            return response.json().catch(function() {
+                                return {
+                                    message: "{{ __('The Application customer PII export could not be generated.') }}"
+                                };
+                            }).then(function(error) {
+                                var validationMessage = error.message;
+
+                                if (error.errors) {
+                                    var keys = Object.keys(error.errors);
+                                    if (keys.length && error.errors[keys[0]].length) {
+                                        validationMessage = error.errors[keys[0]][0];
+                                    }
+                                }
+
+                                throw new Error(validationMessage ||
+                                    "{{ __('The Application customer PII export could not be generated.') }}");
+                            });
+                        }
+
+                        var disposition = response.headers.get('Content-Disposition') || '';
+                        var filenameMatch = disposition.match(/filename\*?=(?:UTF-8''|["'])?([^"';]+)/i);
+                        var filename = filenameMatch
+                            ? decodeURIComponent(filenameMatch[1].replace(/["']/g, ''))
+                            : 'application-customer-pii-export.csv';
+
+                        return response.blob().then(function(blob) {
+                            return { blob: blob, filename: filename };
+                        });
+                    }).then(function(download) {
+                        var downloadUrl = window.URL.createObjectURL(download.blob);
+                        var link = document.createElement('a');
+
+                        link.href = downloadUrl;
+                        link.download = download.filename;
+                        document.body.appendChild(link);
+                        link.click();
+                        document.body.removeChild(link);
+                        window.setTimeout(function() {
+                            window.URL.revokeObjectURL(downloadUrl);
+                        }, 1000);
+
+                        $('#application-customer-pii-export-modal').modal('hide');
+                        form[0].reset();
+                        form.data('submitting', false);
+                        applicationPiiCsvIsValid = false;
+                        $('#application_id_csv').val('');
+                        $('#application-id-file-validation').text('')
+                            .removeClass('text-success text-danger');
+                        $('#application-customer-pii-export-submit')
+                            .text("{{ __('Export Customer PII') }}");
+                        updateApplicationPiiExportButton();
+
+                        Swal.fire({
+                            title: "{{ __('Customer PII exported successfully') }}",
+                            text: "{{ __('The CSV was downloaded. Store it securely and delete it when it is no longer required.') }}",
+                            icon: 'success',
+                            confirmButtonColor: '#3085d6'
+                        });
+                    }).catch(function(error) {
+                        form.data('submitting', false);
+                        $('#application-customer-pii-export-submit')
+                            .text("{{ __('Export Customer PII') }}");
+                        updateApplicationPiiExportButton();
+
+                        Swal.fire({
+                            title: "{{ __('Export failed') }}",
+                            text: error.message,
+                            icon: 'error',
+                            confirmButtonColor: '#3085d6'
+                        });
+                    });
+                });
+            });
+        @endif
+
         $(document).ready(function () {
     // Get the authenticated user's service_provider_id
     var serviceProviderId = {{ Auth::user()->service_provider_id ?? 'null' }}; // Use null if undefined
@@ -249,7 +616,9 @@ Developed By: Innovative Solution Pvt. Ltd. (ISPL)   -->
                     data: function(d) {
                         d.bin = $('#bin').val();
                         d.house_address = $('#house_address').val();
-                        d.customer_name = $('#customer_name').val();
+                        @if ($customerPiiListUnlocked)
+                            d.customer_name = $('#customer_name').val();
+                        @endif
                         d.ward = $('#ward').val();
                         d.application_id = $('#application_id').val();
                         d.emptying_status = $('#emptying_status').val();
@@ -423,6 +792,15 @@ Developed By: Innovative Solution Pvt. Ltd. (ISPL)   -->
             setTimeout(function() {
                 localStorage.clear();
             }, 60 * 60 * 1000); ///for 1 hour
+
+            @if ($customerPiiListUnlocked && $customerPiiUnlockSeconds > 0)
+                window.setTimeout(function() {
+                    var lockForm = document.getElementById('application-pii-lock-form');
+                    if (lockForm) {
+                        lockForm.submit();
+                    }
+                }, {{ $customerPiiUnlockSeconds * 1000 }});
+            @endif
             
             $('#road_code').prepend('<option selected=""></option>').select2({
                 ajax: {
