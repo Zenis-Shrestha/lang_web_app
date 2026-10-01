@@ -36,6 +36,8 @@ return [
 
     'export' => [
         'max_bins' => (int) env('PII_EXPORT_MAX_BINS', 5000),
+        'max_application_ids' => (int) env('PII_EXPORT_MAX_APPLICATION_IDS', 5000),
+        'max_tax_codes' => (int) env('PII_EXPORT_MAX_TAX_CODES', 5000),
         'max_file_kb' => (int) env('PII_EXPORT_MAX_FILE_KB', 2048),
     ],
 

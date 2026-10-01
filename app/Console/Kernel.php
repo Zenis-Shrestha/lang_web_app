@@ -12,6 +12,10 @@ class Kernel extends ConsoleKernel
         \App\Console\Commands\CheckPiiConfiguration::class,
         \App\Console\Commands\EncryptExistingOwnerPii::class,
         \App\Console\Commands\VerifyOwnerPiiEncryption::class,
+        \App\Console\Commands\EncryptExistingApplicationCustomerPii::class,
+        \App\Console\Commands\VerifyApplicationCustomerPiiEncryption::class,
+        \App\Console\Commands\EncryptExistingPropertyTaxOwnerPii::class,
+        \App\Console\Commands\VerifyPropertyTaxOwnerPiiEncryption::class,
         \App\Console\Commands\KpiCron::class,
 
         // update table counts

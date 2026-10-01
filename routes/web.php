@@ -156,6 +156,14 @@ Route::group([
     'namespace' => 'TaxPaymentInfo',
     'middleware' => 'auth'
 ], function () {
+    Route::post('tax-payment/owner-pii/unlock', 'PropertyTaxPiiAccessController@unlock')
+        ->middleware('throttle:5,1')
+        ->name('tax-payment-pii.unlock');
+    Route::post('tax-payment/owner-pii/lock', 'PropertyTaxPiiAccessController@lock')
+        ->name('tax-payment-pii.lock');
+    Route::post('tax-payment/owner-pii/export', 'PropertyTaxPiiExportController@export')
+        ->middleware(['throttle:5,1', 'pii.no-cache'])
+        ->name('tax-payment-pii.export');
     Route::get('tax-payment/data', 'TaxPaymentController@getData')->name('tax-payment.getData');
     Route::get('tax-payment/export', 'TaxPaymentController@export')->name('tax-payment.export');
     Route::get('tax-payment/exportunmatched', 'TaxPaymentController@exportunmatched')->name('tax-payment.exportunmatched');
@@ -456,6 +464,17 @@ Route::group([
      *
      */
     Route::get('application/getData', 'ApplicationController@getData')->name('application.get-data');
+    Route::post('application/customer-pii/unlock-list', 'ApplicationPiiAccessController@unlockList')
+        ->middleware('throttle:5,1')
+        ->name('application-pii.unlock-list');
+    Route::post('application/customer-pii/reveal-for-create', 'ApplicationPiiAccessController@revealForCreate')
+        ->middleware(['throttle:5,1', 'pii.no-cache'])
+        ->name('application-pii.reveal-for-create');
+    Route::post('application/customer-pii/lock', 'ApplicationPiiAccessController@lock')
+        ->name('application-pii.lock');
+    Route::post('application/customer-pii/export', 'ApplicationCustomerPiiExportController@export')
+        ->middleware('throttle:5,1')
+        ->name('application-pii.export');
     Route::get('application/export', 'ApplicationController@export')->name('application.export');
     Route::get('application/{id}/history', 'ApplicationController@history')->name('application.history');
     Route::get('application/getBuildingDetails', 'ApplicationController@buildingDetails')->name('application.get-building-details');
