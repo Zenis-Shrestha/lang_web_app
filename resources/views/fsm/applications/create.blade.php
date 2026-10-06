@@ -12,49 +12,16 @@ Developed By: Innovative Solution Pvt. Ltd. (ISPL)   -->
     @include('layouts.components.success-alert')
     @include('layouts.components.error-alert')
 
-    @if ($canRevealOwnerPii)
-        <button id="application-owner-pii-reveal-button" type="button"
-            class="btn btn-info btn-sm float-right" style="display: none"
-            data-toggle="modal" data-target="#application-owner-pii-reveal-modal">
-            {{ __('View PII Information') }}
-        </button>
-
-        <div class="modal fade" id="application-owner-pii-reveal-modal" tabindex="-1" role="dialog"
-            aria-labelledby="application-owner-pii-reveal-title" aria-hidden="true">
-            <div class="modal-dialog" role="document">
-                <div class="modal-content">
-                    <form id="application-owner-pii-reveal-form" method="POST"
-                        action="{{ route('application-pii.reveal-for-create') }}">
-                        @csrf
-                        <div class="modal-header">
-                            <h5 class="modal-title" id="application-owner-pii-reveal-title">
-                                {{ __('View Owner PII') }}
-                            </h5>
-                            <button type="button" class="close" data-dismiss="modal" aria-label="{{ __('Close') }}">
-                                <span aria-hidden="true">&times;</span>
-                            </button>
-                        </div>
-                        <div class="modal-body">
-                            <p>
-                                {{ __('Re-enter your login password to reveal owner information for the selected BIN. The password is verified but never stored.') }}
-                            </p>
-                            <div class="form-group mb-0">
-                                <label for="application_owner_pii_password">{{ __('Current Password') }}</label>
-                                <input id="application_owner_pii_password" name="current_password" type="password"
-                                    class="form-control" required maxlength="255" autocomplete="current-password">
-                            </div>
-                        </div>
-                        <div class="modal-footer">
-                            <button type="button" class="btn btn-secondary" data-dismiss="modal">
-                                {{ __('Cancel') }}
-                            </button>
-                            <button id="application-owner-pii-reveal-submit" type="submit" class="btn btn-info">
-                                {{ __('View PII Information') }}
-                            </button>
-                        </div>
-                    </form>
-                </div>
-            </div>
+    @if ($ownerPiiLookupUnlocked)
+        <div class="alert alert-success" role="status">
+            {{ __('Owner PII mode is active. Selecting a BIN will automatically load the owner information while the temporary access remains valid.') }}
+        </div>
+    @else
+        <div class="alert alert-warning" role="status">
+            {{ __('Owner information is locked and will remain masked. Return to Applications and activate View Owner PII Information before adding an Application when owner verification is required.') }}
+            <a href="{{ route('application.index') }}" class="alert-link">
+                {{ __('Back to Applications') }}
+            </a>
         </div>
     @endif
 
@@ -80,7 +47,6 @@ Developed By: Innovative Solution Pvt. Ltd. (ISPL)   -->
     const sessionServiceProviderId = @json(
         session('service_provider_id') ?? old('service_provider_id')
     );
-    const canRevealOwnerPii = @json((bool) $canRevealOwnerPii);
     const ownerPiiMask = '********';
     let ownerPiiRevealed = false;
 
@@ -127,7 +93,7 @@ Developed By: Innovative Solution Pvt. Ltd. (ISPL)   -->
         }
     }
 
-    function showLockedOwnerFields(showRevealButton) {
+    function showLockedOwnerFields() {
         ownerPiiRevealed = false;
         $('input[type="hidden"][name="customer_name"], ' +
             'input[type="hidden"][name="customer_gender"], ' +
@@ -146,9 +112,39 @@ Developed By: Innovative Solution Pvt. Ltd. (ISPL)   -->
             .prop('disabled', true);
 
         $('#autofill').prop('checked', false).prop('disabled', true);
-        $('#application-owner-pii-reveal-button').toggle(
-            Boolean(showRevealButton && canRevealOwnerPii && $('#bin').val())
+    }
+
+    function applyOwnerPiiFromBuildingLookup(response) {
+        // SECURITY NOTE: `owner_pii_locked` is returned by the server after
+        // it re-checks the password-confirmed owner_lookup session scope. The
+        // browser never promotes itself to an unlocked state; it only renders
+        // the fields that the authorized endpoint returned for this BIN.
+        if (response.owner_pii_locked) {
+            showLockedOwnerFields();
+            return;
+        }
+
+        setOwnerFieldFromLookup(
+            '#customer_name',
+            'customer_name',
+            response.customer_name
         );
+        setOwnerFieldFromLookup(
+            '#customer_gender',
+            'customer_gender',
+            response.customer_gender
+        );
+        setOwnerFieldFromLookup(
+            '#customer_contact',
+            'customer_contact',
+            response.customer_contact
+        );
+
+        // This flag controls only the Same as Owner convenience checkbox. It
+        // is not an authorization decision and is reset whenever the BIN is
+        // changed or the server reports that the grant expired.
+        ownerPiiRevealed = true;
+        $('#autofill').prop('disabled', false);
     }
 
     function lockConfirmAddressFields() {
@@ -224,7 +220,6 @@ Developed By: Innovative Solution Pvt. Ltd. (ISPL)   -->
         $("#applicant_gender").removeAttr('disabled');
         $("input[name='applicant_contact']").removeAttr('disabled');
         $("input[name='autofill']").prop('checked', false).prop('disabled', true);
-        $('#application-owner-pii-reveal-button').hide();
         ownerPiiRevealed = false;
     }
 
@@ -251,7 +246,7 @@ Developed By: Innovative Solution Pvt. Ltd. (ISPL)   -->
             });
 
             if ($('#bin').val() != '') {
-                showLockedOwnerFields(false);
+                showLockedOwnerFields();
                 displayAjaxLoader();
                 $.ajax({
                     url: "{{ route('application.get-building-details') }}",
@@ -265,10 +260,11 @@ Developed By: Innovative Solution Pvt. Ltd. (ISPL)   -->
                                 containmentOptions += `<option value="${containment}">${containment}</option>`;
                             });
 
-                            // Address lookup is intentionally non-PII. Owner
-                            // values remain masked until the protected button
-                            // performs a one-record, password-confirmed lookup.
-                            showLockedOwnerFields(true);
+                            // The same address request carries owner PII only
+                            // when the server confirms the temporary scope is
+                            // still active. Otherwise this helper leaves all
+                            // owner fields fully masked.
+                            applyOwnerPiiFromBuildingLookup(res);
                             $('#household_served').val(res.household_served).attr('disabled', true);
                             $('#population_served').val(res.population_served).attr('disabled', true);
                             $('#toilet_count').val(res.toilet_count).attr('disabled', true);
@@ -345,112 +341,7 @@ Developed By: Innovative Solution Pvt. Ltd. (ISPL)   -->
         const today = new Date().toISOString().split('T')[0];
         document.getElementById('proposed_emptying_date').setAttribute('min', today);
 
-        const ownerPiiButton = $('#application-owner-pii-reveal-button');
-        const ownerCardHeader = $('#customer_name').closest('.card').find('.card-header').first();
-
-        if (ownerPiiButton.length && ownerCardHeader.length) {
-            ownerCardHeader.append(ownerPiiButton.detach());
-        }
-
         $('#autofill').prop('disabled', true);
-
-        $('#application-owner-pii-reveal-form').on('submit', function(event) {
-            event.preventDefault();
-
-            const form = $(this);
-            const selectedBin = String($('#bin').val() || '');
-
-            if (!selectedBin || form.data('submitting')) {
-                return;
-            }
-
-            const formData = new FormData(form[0]);
-            formData.append('bin', selectedBin);
-            form.data('submitting', true);
-            $('#application-owner-pii-reveal-submit')
-                .prop('disabled', true)
-                .text("{{ __('Revealing...') }}");
-
-            fetch(form.attr('action'), {
-                method: 'POST',
-                body: formData,
-                credentials: 'same-origin',
-                headers: {
-                    'Accept': 'application/json',
-                    'X-Requested-With': 'XMLHttpRequest'
-                }
-            }).then(function(response) {
-                return response.json().catch(function() {
-                    return {
-                        message: "{{ __('Owner information could not be revealed.') }}"
-                    };
-                }).then(function(payload) {
-                    if (!response.ok) {
-                        let message = payload.message;
-
-                        if (payload.errors) {
-                            const keys = Object.keys(payload.errors);
-                            if (keys.length && payload.errors[keys[0]].length) {
-                                message = payload.errors[keys[0]][0];
-                            }
-                        }
-
-                        throw new Error(message ||
-                            "{{ __('Owner information could not be revealed.') }}");
-                    }
-
-                    return payload;
-                });
-            }).then(function(payload) {
-                // Discard a late response if the user changed the BIN while
-                // the password-confirmed lookup was in flight.
-                if (String($('#bin').val() || '') !== selectedBin) {
-                    throw new Error("{{ __('The selected BIN changed. Please try again.') }}");
-                }
-
-                setOwnerFieldFromLookup(
-                    '#customer_name',
-                    'customer_name',
-                    payload.customer_name
-                );
-                setOwnerFieldFromLookup(
-                    '#customer_gender',
-                    'customer_gender',
-                    payload.customer_gender
-                );
-                setOwnerFieldFromLookup(
-                    '#customer_contact',
-                    'customer_contact',
-                    payload.customer_contact
-                );
-
-                ownerPiiRevealed = true;
-                $('#autofill').prop('disabled', false);
-                $('#application-owner-pii-reveal-button').hide();
-                $('#application-owner-pii-reveal-modal').modal('hide');
-                form[0].reset();
-
-                Swal.fire({
-                    title: "{{ __('Owner PII revealed') }}",
-                    text: "{{ __('Owner information was loaded for the selected BIN only.') }}",
-                    icon: 'success',
-                    confirmButtonColor: '#3085d6'
-                });
-            }).catch(function(error) {
-                Swal.fire({
-                    title: "{{ __('Unable to reveal owner PII') }}",
-                    text: error.message,
-                    icon: 'error',
-                    confirmButtonColor: '#3085d6'
-                });
-            }).finally(function() {
-                form.data('submitting', false);
-                $('#application-owner-pii-reveal-submit')
-                    .prop('disabled', false)
-                    .text("{{ __('View PII Information') }}");
-                $('#application_owner_pii_password').val('');
-            });
-        });
 
         $('#bin').prepend('<option selected=""></option>').select2({
             ajax: {

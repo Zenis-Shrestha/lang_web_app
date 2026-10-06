@@ -19,7 +19,9 @@ class ApplicationPiiAccessService
         $now = now();
 
         // Application PII receives its own session grant. It never inherits
-        // the Building owner-PII unlock state.
+        // the Building module's owner-PII unlock state. The grant may contain
+        // an owner_lookup scope, but only after Application-specific password
+        // re-entry and only for a user who can add Applications.
         session()->put(self::SESSION_KEY, [
             'user_id' => $user->getKey(),
             'authenticated_at' => $now->timestamp,

@@ -140,15 +140,24 @@ class ApplicationController extends Controller
         }
 
         $user = Auth::user();
-        $canRevealOwnerPii = $user
+
+        // Add Application deliberately reuses the short-lived grant created
+        // from the Application list. Merely having the permissions is not
+        // enough: the user must also have completed password re-entry and the
+        // owner_lookup scope must still be unexpired on the server.
+        $ownerPiiLookupUnlocked = $user
             && $user->can('Add Application')
-            && $this->applicationPiiAccess->canUnlock($user);
+            && $this->applicationPiiAccess->isUnlocked(
+                $user,
+                'owner_lookup',
+                ApplicationPiiAccessService::ALL_APPLICATIONS_RESOURCE_ID
+            );
 
         return view('fsm.applications.create',[
             'formAction' => $this->applicationService->getCreateFormAction(),
             'formFields' => $this->applicationService->getCreateFormFields(),
             'indexAction' => $this->applicationService->getIndexAction(),
-            'canRevealOwnerPii' => $canRevealOwnerPii,
+            'ownerPiiLookupUnlocked' => $ownerPiiLookupUnlocked,
             'action_type' => $action_type,
         ]);
     }
@@ -162,9 +171,46 @@ class ApplicationController extends Controller
      */
     public function buildingDetails(Request $request)
     {
-        // Address selection must never reveal owner PII implicitly. The user
-        // must use the record-scoped, password-confirmed reveal endpoint.
-        return $this->applicationService->getBuildingDetails($request, false);
+        $validated = $request->validate([
+            'bin' => ['required', 'string', 'max:100'],
+        ]);
+        $user = $request->user() ?? Auth::user();
+
+        // SECURITY BOUNDARY: the JavaScript flag and disabled/masked inputs
+        // are presentation only. This server-side check runs for every BIN
+        // lookup, so an expired, revoked, or forged browser request receives
+        // no plaintext owner fields.
+        $revealOwnerPii = $user
+            && $user->can('Add Application')
+            && $this->applicationPiiAccess->isUnlocked(
+                $user,
+                'owner_lookup',
+                ApplicationPiiAccessService::ALL_APPLICATIONS_RESOURCE_ID
+            );
+
+        $response = $this->applicationService->getBuildingDetails(
+            $request,
+            $revealOwnerPii
+        );
+
+        if ($revealOwnerPii) {
+            // Audit the identifier and outcome, never the decrypted owner
+            // values. The no-cache middleware protects this response in the
+            // same way as the Application list and detail responses.
+            $this->piiAudit->record(
+                'application_owner_pii_lookup_viewed',
+                $response->getStatusCode() < 400,
+                $user,
+                null,
+                [
+                    'surface' => 'application_create',
+                    'bin' => (string) $validated['bin'],
+                ],
+                'password_reentry'
+            );
+        }
+
+        return $response;
     }
 
     /**

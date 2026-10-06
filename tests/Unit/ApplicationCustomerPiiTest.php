@@ -105,12 +105,13 @@ class ApplicationCustomerPiiTest extends TestCase
         $service->unlock(
             $user,
             'password_reentry',
-            ['list', 'view'],
+            ['list', 'view', 'owner_lookup'],
             ApplicationPiiAccessService::ALL_APPLICATIONS_RESOURCE_ID
         );
 
         $this->assertTrue($service->isUnlocked($user, 'list'));
         $this->assertTrue($service->isUnlocked($user, 'view', '123'));
+        $this->assertTrue($service->isUnlocked($user, 'owner_lookup', '123'));
         $this->assertFalse($service->isUnlocked($user, 'edit', '123'));
 
         $service->lock();

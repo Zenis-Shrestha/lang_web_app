@@ -3,10 +3,8 @@
 namespace App\Http\Controllers\Fsm;
 
 use App\Http\Controllers\Controller;
-use App\Models\BuildingInfo\Building;
 use App\Services\ApplicationPiiAccessService;
 use App\Services\OwnerPiiAuditService;
-use App\Services\OwnerPiiPresenter;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
 
@@ -14,103 +12,14 @@ class ApplicationPiiAccessController extends Controller
 {
     private ApplicationPiiAccessService $access;
     private OwnerPiiAuditService $audit;
-    private OwnerPiiPresenter $ownerPiiPresenter;
 
     public function __construct(
         ApplicationPiiAccessService $access,
-        OwnerPiiAuditService $audit,
-        OwnerPiiPresenter $ownerPiiPresenter
+        OwnerPiiAuditService $audit
     ) {
         $this->middleware('auth');
         $this->access = $access;
         $this->audit = $audit;
-        $this->ownerPiiPresenter = $ownerPiiPresenter;
-    }
-
-    public function revealForCreate(Request $request)
-    {
-        $user = $request->user();
-        $allowed = $user
-            && $user->can('Add Application')
-            && $this->access->canUnlock($user);
-
-        abort_unless($allowed, 403);
-
-        $validated = $request->validate([
-            'bin' => ['required', 'string', 'max:100'],
-            'current_password' => ['required', 'string', 'max:255'],
-        ]);
-
-        if (empty($user->password)
-            || !Hash::check((string) $validated['current_password'], (string) $user->password)) {
-            $this->audit->record(
-                'application_owner_pii_lookup_password_failed',
-                false,
-                $user,
-                null,
-                [
-                    'surface' => 'application_create',
-                    'bin' => (string) $validated['bin'],
-                ],
-                'password_reentry'
-            );
-
-            return response()->json([
-                'message' => __('Password confirmation failed.'),
-                'errors' => [
-                    'current_password' => [__('Password confirmation failed.')],
-                ],
-            ], 422);
-        }
-
-        $building = Building::query()
-            ->where('bin', (string) $validated['bin'])
-            ->first();
-        $owner = $building ? $building->owners : null;
-
-        if (!$building || !$owner) {
-            $this->audit->record(
-                'application_owner_pii_lookup_not_found',
-                false,
-                $user,
-                null,
-                [
-                    'surface' => 'application_create',
-                    'bin' => (string) $validated['bin'],
-                ],
-                'password_reentry'
-            );
-
-            return response()->json([
-                'message' => __('Owner information was not found for the selected BIN.'),
-            ], 404);
-        }
-
-        // Only this selected owner is decrypted, and only after step-up auth.
-        $ownerPii = $this->ownerPiiPresenter->presentPlaintext($owner);
-
-        $this->audit->record(
-            'application_owner_pii_lookup_revealed',
-            true,
-            $user,
-            null,
-            [
-                'surface' => 'application_create',
-                'bin' => (string) $validated['bin'],
-            ],
-            'password_reentry'
-        );
-
-        return response()->json([
-            'customer_name' => $ownerPii['owner_name'],
-            'customer_gender' => $ownerPii['owner_gender'],
-            'customer_contact' => $ownerPii['owner_contact'],
-        ])->withHeaders([
-            'Cache-Control' => 'no-store, private, max-age=0',
-            'Pragma' => 'no-cache',
-            'Expires' => '0',
-            'X-Content-Type-Options' => 'nosniff',
-        ]);
     }
 
     public function unlockList(Request $request)
@@ -143,9 +52,18 @@ class ApplicationPiiAccessController extends Controller
             ]);
         }
 
-        // List unlocks do not authorize create-form BIN lookups. Each create
-        // lookup has its own password-confirmed, record-scoped request.
+        // This single step-up authentication is intentionally shared by the
+        // Application list and Add Application owner lookup. The browser does
+        // not decide whether PII is unlocked: every DataTable/BIN request must
+        // still pass ApplicationPiiAccessService::isUnlocked() on the server.
         $scopes = ['list', 'view'];
+
+        // Only users who may create an Application receive the owner_lookup
+        // scope. This prevents a list-only user from calling the BIN endpoint
+        // directly to retrieve building owner PII.
+        if ($user->can('Add Application')) {
+            $scopes[] = 'owner_lookup';
+        }
 
         if ($user->can('Edit Application')) {
             $scopes[] = 'edit';
@@ -172,7 +90,7 @@ class ApplicationPiiAccessController extends Controller
 
         return redirect()->route('application.index', [], 303)->with(
             'success',
-            __('Application customer PII is revealed for five minutes.')
+            __('Application owner PII is revealed for five minutes.')
         );
     }
 
@@ -189,6 +107,6 @@ class ApplicationPiiAccessController extends Controller
             'session'
         );
 
-        return back()->with('success', __('Application customer PII is locked.'));
+        return back()->with('success', __('Application owner PII is locked.'));
     }
 }

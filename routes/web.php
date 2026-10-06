@@ -467,9 +467,6 @@ Route::group([
     Route::post('application/customer-pii/unlock-list', 'ApplicationPiiAccessController@unlockList')
         ->middleware('throttle:5,1')
         ->name('application-pii.unlock-list');
-    Route::post('application/customer-pii/reveal-for-create', 'ApplicationPiiAccessController@revealForCreate')
-        ->middleware(['throttle:5,1', 'pii.no-cache'])
-        ->name('application-pii.reveal-for-create');
     Route::post('application/customer-pii/lock', 'ApplicationPiiAccessController@lock')
         ->name('application-pii.lock');
     Route::post('application/customer-pii/export', 'ApplicationCustomerPiiExportController@export')

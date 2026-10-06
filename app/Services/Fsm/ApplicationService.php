@@ -1735,7 +1735,7 @@ class ApplicationService
         }
         public function getBuildingDetails(
             Request $request,
-            bool $revealCustomerPii = false
+            bool $revealOwnerPii = false
         )
         {
             try {
@@ -1756,9 +1756,12 @@ class ApplicationService
                 // Debug the status value
                
       
-                // BIN lookup returns customer PII only inside the temporary
-                // password-confirmed Application PII session.
-                $ownerPii = $revealCustomerPii && $owner
+                // SECURITY BOUNDARY: only the controller can set
+                // $revealOwnerPii after checking the short-lived,
+                // password-confirmed owner_lookup scope. Keeping the explicit
+                // flag here prevents model serialization from accidentally
+                // placing encrypted or decrypted Owner objects in the JSON.
+                $ownerPii = $revealOwnerPii && $owner
                     ? $this->ownerPiiPresenter->presentPlaintext($owner)
                     : null;
 
@@ -1768,7 +1771,12 @@ class ApplicationService
                     "customer_name" => $ownerPii['owner_name'] ?? null,
                     "customer_gender" => $ownerPii['owner_gender'] ?? null,
                     "customer_contact" => $ownerPii['owner_contact'] ?? null,
-                    "customer_pii_locked" => !$revealCustomerPii,
+                    // `owner_pii_locked` is the current name. The customer
+                    // alias is temporarily retained for older JavaScript/API
+                    // consumers while the Application terminology is cleaned
+                    // up in a later compatibility release.
+                    "owner_pii_locked" => !$revealOwnerPii,
+                    "customer_pii_locked" => !$revealOwnerPii,
                     "road" => $road->code ?? null,
                     "ward" => $building->ward ?? null,
                     "containments" => $containmentIds,

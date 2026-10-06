@@ -19,14 +19,16 @@ Developed By: Innovative Solution Pvt. Ltd. (ISPL)   -->
                         @csrf
                         <div class="modal-header">
                             <h5 class="modal-title" id="application-customer-pii-title">
-                                {{ __('Reveal Application Customer PII') }}
+                                {{ __('Reveal Application Owner PII') }}
                             </h5>
                             <button type="button" class="close" data-dismiss="modal" aria-label="{{ __('Close') }}">
                                 <span aria-hidden="true">&times;</span>
                             </button>
                         </div>
                         <div class="modal-body">
-                            <p>{{ __('Customer name, gender, and contact will be available for five minutes. Applicant fields are outside this encryption scope.') }}</p>
+                            <p>
+                                {{ __('Owner name, gender, and contact will be available for five minutes. The same temporary access also allows automatic owner lookup by BIN on Add Application. Applicant fields are outside this encryption scope.') }}
+                            </p>
                             <div class="form-group mb-0">
                                 <label for="application_pii_password">{{ __('Current Password') }}</label>
                                 <input id="application_pii_password" name="current_password" type="password"
@@ -121,13 +123,15 @@ Developed By: Innovative Solution Pvt. Ltd. (ISPL)   -->
                 <form id="application-pii-lock-form" method="POST"
                     action="{{ route('application-pii.lock') }}" class="d-inline">
                     @csrf
-                    <button type="submit" class="btn btn-warning">{{ __('Lock Customer PII') }}</button>
+                    <button type="submit" class="btn btn-warning">{{ __('Lock Owner PII') }}</button>
                 </form>
-                <span class="badge badge-success ml-1">{{ __('Customer PII revealed for this list') }}</span>
+                <span class="badge badge-success ml-1">
+                    {{ __('Owner PII revealed for the Application module') }}
+                </span>
             @elseif ($canUnlockCustomerPii)
                 <button type="button" class="btn btn-info" data-toggle="modal"
                     data-target="#application-customer-pii-modal">
-                    {{ __('View PII Information') }}
+                    {{ __('View Owner PII Information') }}
                 </button>
             @endif
             <a class="btn btn-info float-right" id="headingOne" type="button" data-toggle="collapse"
