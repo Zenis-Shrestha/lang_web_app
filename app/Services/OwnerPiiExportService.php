@@ -184,23 +184,7 @@ class OwnerPiiExportService
                 continue;
             }
 
-            $attributes = $owner->getAttributes();
-            $rows[] = [
-                $this->escapeSpreadsheetValue($bin),
-                $this->escapeSpreadsheetValue(
-                    $this->encryption->decrypt($attributes['owner_name'] ?? null)
-                ),
-                $this->escapeSpreadsheetValue(
-                    $this->encryption->decrypt($attributes['owner_contact'] ?? null)
-                ),
-                $this->escapeSpreadsheetValue(
-                    $this->encryption->decrypt($attributes['owner_gender'] ?? null)
-                ),
-                $this->escapeSpreadsheetValue(
-                    $this->encryption->decrypt($attributes['nid'] ?? null)
-                ),
-                'found',
-            ];
+            $rows[] = $this->rowForOwner($owner);
             $exportedCount++;
         }
 
@@ -209,6 +193,39 @@ class OwnerPiiExportService
             'requested_count' => count($bins),
             'exported_count' => $exportedCount,
             'missing_count' => count($bins) - $exportedCount,
+        ];
+    }
+
+    public function rowsForAllOwners(): array
+    {
+        $query = Owner::query()
+            ->select([
+                'bin',
+                'owner_name',
+                'owner_contact',
+                'owner_gender',
+                'nid',
+            ])
+            ->whereNull('deleted_at');
+        $ownerCount = (clone $query)->count();
+
+        // SECURITY/PERFORMANCE NOTE: this method is called only after the
+        // controller applies the additional administrative-role check for a
+        // full export. cursor() keeps the decrypted dataset out of PHP memory:
+        // each owner is decrypted, CSV-escaped and streamed before the next
+        // row is processed.
+        $rows = $query
+            ->orderBy('bin')
+            ->cursor()
+            ->map(function (Owner $owner): array {
+                return $this->rowForOwner($owner);
+            });
+
+        return [
+            'rows' => $rows,
+            'requested_count' => $ownerCount,
+            'exported_count' => $ownerCount,
+            'missing_count' => 0,
         ];
     }
 
@@ -232,5 +249,29 @@ class OwnerPiiExportService
         }
 
         return $value;
+    }
+
+    private function rowForOwner(Owner $owner): array
+    {
+        // Read raw attributes so no model serialization or accessor can leak
+        // fields outside the explicit export allowlist.
+        $attributes = $owner->getAttributes();
+
+        return [
+            $this->escapeSpreadsheetValue((string) ($attributes['bin'] ?? '')),
+            $this->escapeSpreadsheetValue(
+                $this->encryption->decrypt($attributes['owner_name'] ?? null)
+            ),
+            $this->escapeSpreadsheetValue(
+                $this->encryption->decrypt($attributes['owner_contact'] ?? null)
+            ),
+            $this->escapeSpreadsheetValue(
+                $this->encryption->decrypt($attributes['owner_gender'] ?? null)
+            ),
+            $this->escapeSpreadsheetValue(
+                $this->encryption->decrypt($attributes['nid'] ?? null)
+            ),
+            'found',
+        ];
     }
 }

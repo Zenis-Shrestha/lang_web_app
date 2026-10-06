@@ -10,6 +10,14 @@
             && $piiExportUser->can('View Owner PII')
             && $piiExportUser->can('Unlock Owner PII')
             && $piiExportUser->can('Export Owner PII');
+        // Full-dataset export is deliberately narrower than selected-BIN
+        // export because Owner/Building rows do not contain municipality_id.
+        $canExportAllOwnerPii = $canExportOwnerPii
+            && $piiExportUser->hasAnyRole([
+                'Super Admin',
+                'Municipality - Super Admin',
+                'Municipality - IT Admin',
+            ]);
     @endphp
 
     @if (!$piiListUnlocked && $canUnlockOwnerPiiList)
@@ -88,10 +96,48 @@
                                 {{ __('The downloaded CSV contains sensitive owner information. Handle it securely and delete it when it is no longer required.') }}
                             </div>
                             <div class="form-group">
+                                <label class="d-block">{{ __('Export Scope') }}</label>
+                                @if ($canExportAllOwnerPii)
+                                    <div class="custom-control custom-radio mb-2">
+                                        <input id="owner_pii_export_mode_all" name="export_mode" type="radio"
+                                            value="all" class="custom-control-input" required>
+                                        <label class="custom-control-label" for="owner_pii_export_mode_all">
+                                            {{ __('Export all authorized owners') }}
+                                        </label>
+                                    </div>
+                                @endif
+                                <div class="custom-control custom-radio">
+                                    <input id="owner_pii_export_mode_bin_list" name="export_mode" type="radio"
+                                        value="bin_list" class="custom-control-input" required>
+                                    <label class="custom-control-label" for="owner_pii_export_mode_bin_list">
+                                        {{ __('Export owners from BIN list') }}
+                                    </label>
+                                </div>
+                                @error('export_mode')
+                                    <div class="invalid-feedback d-block">{{ $message }}</div>
+                                @enderror
+                            </div>
+                            @if ($canExportAllOwnerPii)
+                                <div id="owner-pii-export-all-confirmation" class="alert alert-danger" style="display: none">
+                                    <p class="mb-2">
+                                        {{ __('This will export every active owner record available in this municipality installation. No BIN filter will be applied.') }}
+                                    </p>
+                                    <div class="custom-control custom-checkbox">
+                                        <input id="confirm_export_all" name="confirm_export_all" type="checkbox"
+                                            value="1" class="custom-control-input">
+                                        <label class="custom-control-label" for="confirm_export_all">
+                                            {{ __('I understand and intend to export all owner PII.') }}
+                                        </label>
+                                    </div>
+                                    @error('confirm_export_all')
+                                        <div class="invalid-feedback d-block">{{ $message }}</div>
+                                    @enderror
+                                </div>
+                            @endif
+                            <div id="owner-pii-bin-list-fields" class="form-group" style="display: none">
                                 <label for="bin_file">{{ __('BIN List CSV') }}</label>
                                 <input id="bin_file" type="file" accept=".csv,text/csv"
-                                    class="form-control-file @if ($errors->has('bin_file') || $errors->has('bin_csv')) is-invalid @endif"
-                                    required>
+                                    class="form-control-file @if ($errors->has('bin_file') || $errors->has('bin_csv')) is-invalid @endif">
                                 <input id="bin_csv" name="bin_csv" type="hidden" value="">
                                 <small class="form-text text-muted">
                                     {{ __('Upload a CSV containing a bin header and one BIN per row.') }}
@@ -404,7 +450,7 @@
                 $('#reveal-owner-pii-list-modal').modal('show');
             @endif
 
-            @if ($errors->has('bin_file') || $errors->has('bin_csv') || $errors->has('export_password'))
+            @if ($errors->has('export_mode') || $errors->has('confirm_export_all') || $errors->has('bin_file') || $errors->has('bin_csv') || $errors->has('export_password'))
                 $('#export-owner-pii-modal').modal('show');
             @endif
 
@@ -413,12 +459,48 @@
             var ownerPiiMaxBins = {{ max(1, (int) config('pii.export.max_bins', 5000)) }};
 
             function updateOwnerPiiExportButton() {
+                var exportMode = $('input[name="export_mode"]:checked').val();
                 var passwordPresent = $('#export_password').val().length > 0;
+                var scopeIsReady = exportMode === 'all'
+                    ? $('#confirm_export_all').is(':checked')
+                    : exportMode === 'bin_list' && ownerPiiCsvIsValid;
+
+                // The button requires an explicit scope. A missing/invalid CSV
+                // cannot fall through to a full export, and full export also
+                // requires its separate acknowledgement checkbox.
                 $('#owner-pii-export-submit').prop(
                     'disabled',
-                    !ownerPiiCsvIsValid || !passwordPresent
+                    !scopeIsReady || !passwordPresent
                 );
             }
+
+            function resetOwnerPiiExportMode() {
+                ownerPiiCsvIsValid = false;
+                $('#bin_file').val('');
+                $('#bin_csv').val('');
+                $('#confirm_export_all').prop('checked', false);
+                $('#owner-pii-bin-list-fields, #owner-pii-export-all-confirmation').hide();
+                $('#bin-file-validation').text('')
+                    .removeClass('text-success text-danger');
+                updateOwnerPiiExportButton();
+            }
+
+            $('input[name="export_mode"]').on('change', function() {
+                var exportMode = $(this).val();
+
+                // Switching modes clears all previous CSV/confirmation state.
+                // This prevents stale hidden CSV content from being submitted
+                // with an intentional full export (or vice versa).
+                ownerPiiCsvIsValid = false;
+                $('#bin_file').val('');
+                $('#bin_csv').val('');
+                $('#confirm_export_all').prop('checked', false);
+                $('#bin-file-validation').text('')
+                    .removeClass('text-success text-danger');
+                $('#owner-pii-bin-list-fields').toggle(exportMode === 'bin_list');
+                $('#owner-pii-export-all-confirmation').toggle(exportMode === 'all');
+                updateOwnerPiiExportButton();
+            });
 
             function showOwnerPiiCsvStatus(message, valid) {
                 $('#bin-file-validation')
@@ -545,13 +627,20 @@
                 reader.readAsText(file);
             });
 
-            $('#export_password').on('input', updateOwnerPiiExportButton);
+            $('#export_password, #confirm_export_all').on(
+                'input change',
+                updateOwnerPiiExportButton
+            );
 
             $('#owner-pii-export-form').on('submit', function(e) {
                 e.preventDefault();
                 var form = $(this);
+                var exportMode = $('input[name="export_mode"]:checked').val();
+                var scopeIsReady = exportMode === 'all'
+                    ? $('#confirm_export_all').is(':checked')
+                    : exportMode === 'bin_list' && ownerPiiCsvIsValid;
 
-                if (!ownerPiiCsvIsValid || form.data('submitting')) {
+                if (!scopeIsReady || form.data('submitting')) {
                     return;
                 }
 
@@ -602,10 +691,7 @@
                     $('#export-owner-pii-modal').modal('hide');
                     form[0].reset();
                     form.data('submitting', false);
-                    ownerPiiCsvIsValid = false;
-                    $('#bin_csv').val('');
-                    $('#bin-file-validation').text('')
-                        .removeClass('text-success text-danger');
+                    resetOwnerPiiExportMode();
                     $('#owner-pii-export-submit')
                         .text("{{ __('Export Owner PII') }}");
                     updateOwnerPiiExportButton();

@@ -36,18 +36,59 @@ class OwnerPiiExportController extends Controller
             (int) config('pii.export.max_file_kb', 2048)
         );
         $request->validate([
+            'export_mode' => ['required', 'string', 'in:all,bin_list'],
             'bin_csv' => [
-                'required',
+                'nullable',
+                'required_if:export_mode,bin_list',
                 'string',
                 'max:' . ($maximumFileSize * 1024),
             ],
+            // The checkbox exists only for the explicit full-export mode. Using
+            // "sometimes" keeps the existing BIN-list request valid when the
+            // field is not present at all.
+            'confirm_export_all' => ['sometimes', 'accepted'],
             'export_password' => ['required', 'string', 'max:255'],
         ], [
-            'bin_csv.required' => __('Select a valid BIN list CSV.'),
+            'export_mode.required' => __('Select an owner PII export mode.'),
+            'export_mode.in' => __('The selected owner PII export mode is invalid.'),
+            'bin_csv.required_if' => __('Select a valid BIN list CSV.'),
             'bin_csv.max' => __('The BIN list CSV is too large.'),
         ]);
 
         $user = $request->user();
+        $exportMode = (string) $request->input('export_mode');
+
+        // Full export is intentionally stricter than a selected-BIN export.
+        // This project has no municipality_id on Owner/Building rows, so an
+        // application-level row scope cannot be applied. Restricting the full
+        // dataset to trusted administrative roles prevents ordinary export
+        // users from expanding a bounded BIN export into a bulk disclosure.
+        if ($exportMode === 'all' && !$this->canExportAllOwners($user)) {
+            $this->audit->record(
+                'pii_export_all_permission_denied',
+                false,
+                $user,
+                null,
+                [
+                    'surface' => 'building_owner_pii_export',
+                    'export_mode' => 'all',
+                ],
+                'authenticated_session'
+            );
+
+            abort(403, __('You are not authorized to export all owner PII.'));
+        }
+
+        // A separate acknowledgement prevents a missing/invalid CSV from ever
+        // becoming an implicit request for the entire owner dataset.
+        if ($exportMode === 'all' && !$request->boolean('confirm_export_all')) {
+            throw ValidationException::withMessages([
+                'confirm_export_all' => __(
+                    'Confirm that you intend to export all authorized owner PII.'
+                ),
+            ]);
+        }
+
         $password = (string) $request->input('export_password', '');
         $passwordHash = (string) ($user->password ?? '');
 
@@ -81,17 +122,28 @@ class OwnerPiiExportController extends Controller
         }
 
         try {
-            $bins = $this->exporter->parseCsvText(
-                (string) $request->input('bin_csv')
-            );
-            $result = $this->exporter->rowsForBins($bins);
+            if ($exportMode === 'all') {
+                // This branch is explicit and role-gated. It is never used as
+                // a fallback when the uploaded CSV is empty or invalid.
+                $result = $this->exporter->rowsForAllOwners();
+            } else {
+                // Preserve the existing CSV parsing, validation, deduplication
+                // and not-found reporting for selected BIN exports.
+                $bins = $this->exporter->parseCsvText(
+                    (string) $request->input('bin_csv')
+                );
+                $result = $this->exporter->rowsForBins($bins);
+            }
         } catch (ValidationException $exception) {
             $this->audit->record(
                 'pii_export_validation_failed',
                 false,
                 $user,
                 null,
-                ['surface' => 'building_owner_pii_export'],
+                [
+                    'surface' => 'building_owner_pii_export',
+                    'export_mode' => $exportMode,
+                ],
                 'password_reentry'
             );
 
@@ -102,7 +154,10 @@ class OwnerPiiExportController extends Controller
                 false,
                 $user,
                 null,
-                ['surface' => 'building_owner_pii_export'],
+                [
+                    'surface' => 'building_owner_pii_export',
+                    'export_mode' => $exportMode,
+                ],
                 'password_reentry'
             );
             report($exception);
@@ -130,6 +185,7 @@ class OwnerPiiExportController extends Controller
             null,
             [
                 'surface' => 'building_owner_pii_export',
+                'export_mode' => $exportMode,
                 'requested_count' => $result['requested_count'],
                 'exported_count' => $result['exported_count'],
                 'missing_count' => $result['missing_count'],
@@ -139,7 +195,8 @@ class OwnerPiiExportController extends Controller
 
         $headers = $this->exporter->headers();
         $rows = $result['rows'];
-        $filename = 'owner-pii-export-' . now()->format('Ymd-His') . '.csv';
+        $filename = 'owner-pii-export-' . $exportMode . '-'
+            . now()->format('Ymd-His') . '.csv';
 
         return response()->streamDownload(
             function () use ($headers, $rows) {
@@ -185,5 +242,21 @@ class OwnerPiiExportController extends Controller
         }
 
         abort_unless($allowed, 403);
+    }
+
+    private function canExportAllOwners($user): bool
+    {
+        if (!$user) {
+            return false;
+        }
+
+        // Keep this second gate in the controller even though the UI hides the
+        // option. A caller can forge form fields, so browser visibility is not
+        // an authorization boundary.
+        return $user->hasAnyRole([
+            'Super Admin',
+            'Municipality - Super Admin',
+            'Municipality - IT Admin',
+        ]);
     }
 }
