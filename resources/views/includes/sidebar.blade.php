@@ -78,6 +78,8 @@ Developed By: Innovative Solution Pvt. Ltd. (ISPL)   -->
 
                 @if (Auth::user()->hasanyPermissionInGroup([
                 'FSM Dashboard',
+                'Schedule Desludging',
+                'Schedule Reintegration',
                 'Containments',
                 'Service Providers',
                 'Employee Infos',
@@ -93,6 +95,8 @@ Developed By: Innovative Solution Pvt. Ltd. (ISPL)   -->
                 ]) || Auth::user()->hasRole('Super Admin'))
                 <li class="nav-item {{ request()->is(
                             'fsm/fsmdashboard',
+                            'fsm/desludging-schedule', 'fsm/desludging-schedule/*',
+                            'fsm/desludging-reintegration', 'fsm/desludging-reintegration/*',
                             'fsm/containments','fsm/containments/*',
                            'fsm/service-providers', 'fsm/service-providers/*',
                             'fsm/employee-infos/*','fsm/employee-infos',
@@ -110,6 +114,8 @@ Developed By: Innovative Solution Pvt. Ltd. (ISPL)   -->
                             : '' }}">
                     <a href="#" class="nav-link {{ request()->is(
                                 'fsm/fsmdashboard',
+                                'fsm/desludging-schedule', 'fsm/desludging-schedule/*',
+                                'fsm/desludging-reintegration', 'fsm/desludging-reintegration/*',
                                 'fsm/containments','fsm/containments/*',
                                 'fsm/service-providers', 'fsm/service-providers/*',
                                 'fsm/employee-infos/*','fsm/employee-infos',

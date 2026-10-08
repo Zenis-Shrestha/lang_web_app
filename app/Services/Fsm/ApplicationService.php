@@ -1460,7 +1460,8 @@ class ApplicationService
                         }
                     }
 
-                    if (!empty($etoUserIds)) {
+                    // In-app notifications are available even without the optional push integration.
+                    if (!empty($etoUserIds) && class_exists(OneSignalService::class)) {
                         app(OneSignalService::class)->sendToUsers(
                             $etoUserIds,
                             'New Application Assigned',

@@ -59,7 +59,7 @@ class MapsService {
      * @return \Illuminate\View\View
      */
 
-    public function mapsIndex() 
+    public function mapsIndex(array $approvedWmsServers = [])
     {
 
         $bldguse = FunctionalUse::orderBy('id', 'asc')->get(['name']);
@@ -110,7 +110,7 @@ class MapsService {
         
         return view('maps.index', compact('page_title', 'wards', 'location','dueYears', 'maxDate','treatmentPlants', 
         'minDate', 'bldguse', 'usecatg', 'pickWardResults', 'pickDateResults', 'pickStructureResults', 'cover_type','roadHierarchy', 'roadSurfaceTypes','surface_type',
-        'bboxstring','road_code'
+        'bboxstring','road_code', 'approvedWmsServers'
     ));
     }
 

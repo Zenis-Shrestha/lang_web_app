@@ -12,7 +12,6 @@ use App\Exports\BuildingsRoadSummaryInfoMultiSheetExport;
 use App\Exports\DrainPotentialSummaryInfoMultiSheetExport;
 use App\Exports\ContainmentSummaryInfoMultiSheetExport;
 use App\Exports\BuildingsIsochroneMultiSheetExport;
-use Illuminate\Support\Facades\Http;
 use App\ServiceProvider;
 use Auth;
 use App\Exports\BuildingsOwnerExport;
@@ -31,13 +30,18 @@ use App\Models\Fsm\Emptying;
 use App\Models\Fsm\Feedback;
 use Schema;
 use App\Services\Maps\MapsService;
+use App\Services\Maps\ApprovedWmsService;
 use Illuminate\Support\Facades\Validator;
+use Illuminate\Support\Facades\Log;
+use InvalidArgumentException;
+use Throwable;
 
 
 class MapsController extends Controller
 {
     private $excel;
     protected MapsService $mapsService;
+    protected ApprovedWmsService $approvedWmsService;
 
     /**
      * Constructor method for the class.
@@ -47,9 +51,14 @@ class MapsController extends Controller
      * @return void
      */
 
-    public function __construct(Excel $excel,MapsService $mapsService)
+    public function __construct(
+        Excel $excel,
+        MapsService $mapsService,
+        ApprovedWmsService $approvedWmsService
+    )
     {
         $this->mapsService = $mapsService;
+        $this->approvedWmsService = $approvedWmsService;
         $this->excel = $excel;
         $this->middleware('auth');//, ['except' => ['index']]);
         //$this->middleware('permission:View Map', ['only' => ['index']]);
@@ -67,7 +76,7 @@ class MapsController extends Controller
     public function index()
     {
         header('Access-Control-Allow-Origin: *');
-        return $this->mapsService->mapsIndex();
+        return $this->mapsService->mapsIndex($this->approvedWmsService->serverOptions());
 
     }
 
@@ -1640,83 +1649,36 @@ class MapsController extends Controller
         return $this->excel->download(new ContainmentSummaryInfoMultiSheetExport(request()->containment_report_polygon, request()->containment_report_year), 'Summary Information Containments Emtpied Monthly.xlsx');
     }
 
-/**
- * Forwards a WMS GetCapabilities request to an external WMS server.
- * Allows CORS only for GetCapabilities requests.
- *
- * @param  \Illuminate\Http\Request  $request
- * @return \Illuminate\Http\Response
- */
+    /**
+     * Fetch capabilities from a server selected from the trusted WMS allow-list.
+     */
+    public function proxyWms(Request $request)
+    {
+        $validated = $request->validate([
+            'server' => ['required', 'string', 'regex:/\A[a-z0-9_-]+\z/'],
+            'version' => ['required', 'string'],
+        ]);
 
-//     public function proxyWms(Request $request)
-// {
-//     $service = strtoupper($request->query('SERVICE', ''));
-//     $reqType = strtolower($request->query('REQUEST', ''));
-//     $verType = strtolower($request->query('VERSION', ''));
+        try {
+            return response()->json(
+                $this->approvedWmsService->fetchCapabilities(
+                    $validated['server'],
+                    $validated['version']
+                )
+            );
+        } catch (InvalidArgumentException $exception) {
+            return response()->json(['error' => $exception->getMessage()], 422);
+        } catch (Throwable $exception) {
+            Log::warning('Approved WMS capabilities request failed.', [
+                'user_id' => optional($request->user())->id,
+                'server_id' => $validated['server'],
+                'exception' => get_class($exception),
+            ]);
 
-
-//     $externalUrl = $request->query('url', '');
-
-//     if (empty($externalUrl)) {
-//         return response()->json(['error' => 'Missing WMS URL.'], 400);
-//     }
-
-//     // Remove 'url' from query parameters
-//     $queryParams = $request->except('url');
-
-//     try {
-//         $response = Http::withOptions([
-//             'verify' => false   
-//         ])->withHeaders([
-//             'Accept' => 'application/xml',
-//         ])->get($externalUrl, $queryParams);
-
-//     } catch (\Exception $e) {
-//         return response()->json([
-//             'error' => 'Failed to fetch WMS URL.',
-//             'message' => $e->getMessage(),
-//         ], 500);
-//     }
-
-//     $res = response($response->body(), $response->status())
-//         ->header('Content-Type', $response->header('Content-Type') ?? 'application/xml');
-
-//     // Allow CORS only for WMS GetCapabilities
-//     if ($service === 'WMS' && $reqType === 'getcapabilities') {
-//         $res->header('Access-Control-Allow-Origin', '*');
-//     }
-
-//     return $res;
-// }
-   
-
-public function proxyWms(Request $request)
-{
-    $externalUrl = $request->query('url');
-
-    if (empty($externalUrl)) {
-        return response()->json(['error' => 'Missing WMS URL.'], 400);
+            return response()->json([
+                'error' => 'The approved WMS server could not be loaded.',
+            ], 502);
+        }
     }
-
-    // Forward ALL query params except 'url'
-    $queryParams = $request->except('url');
-
-    try {
-        $response = Http::withOptions([
-            'verify' => false
-        ])->withHeaders([
-            'Accept' => 'application/xml',
-        ])->get($externalUrl, $queryParams);
-    } catch (\Exception $e) {
-        return response()->json([
-            'error' => 'Failed to fetch WMS URL.',
-            'message' => $e->getMessage(),
-        ], 500);
-    }
-
-    return response($response->body(), $response->status())
-        ->header('Content-Type', $response->header('Content-Type') ?? 'application/xml')
-        ->header('Access-Control-Allow-Origin', '*');
-}
 
 }

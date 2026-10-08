@@ -124,6 +124,7 @@ $(function() {
         bFilter: false,
         processing: true,
         serverSide: true,
+        order: [],
         scrollCollapse: true,
         ajax: {
             url: '{!! url("fsm/service-providers/data") !!}',
@@ -174,8 +175,7 @@ $(function() {
                 orderable: false,
                 searchable: false
             }
-        ],
-        order: [ [0, 'desc'] ]
+        ]
     }).on('draw', function() {
         $('.delete').on('click', function(e) {
             var form = $(this).closest("form");
