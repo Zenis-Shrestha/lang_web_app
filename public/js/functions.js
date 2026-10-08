@@ -99,56 +99,28 @@ function preventMultipleSubmit() {
 };
 
 $(document).ready(function () {
-    createUser();
-    $('#create_user').on('change', createUser);
+    // Check if the create_user checkbox is checked on page load
+    if ($('#create_user').is(":checked")) {
+        $('#user-password').show();
+    } else {
+        $('#user-password').hide();
+    }
 });
 
 // function to check if user is to be created or not
 function createUser() {
-    const createUserSelected = $('#create_user').is(":checked");
-    const passwordSection = $('#user-password');
+    $('#create_user').on('change', function () {
+        if ($('#create_user').is(":checked")) {
 
-    passwordSection.toggle(createUserSelected);
-    // Hidden account fields must not be submitted or validated by the browser.
-    passwordSection.find('input').prop('disabled', !createUserSelected);
+            $('#user-password').show();
+        }
+        else {
+            $('#user-password').hide();
+
+        }
+    });
 }
 
-
-// Keep scrolling table headers aligned while the sidebar changes content width.
-$(document).ready(function () {
-    const content = document.querySelector('.content-wrapper');
-    if (!content || !$.fn.dataTable) {
-        return;
-    }
-
-    let resizeFrame = null;
-    let previousWidth = content.getBoundingClientRect().width;
-    function adjustTableWidths() {
-        if (resizeFrame !== null) {
-            return;
-        }
-        resizeFrame = window.requestAnimationFrame(function () {
-            resizeFrame = null;
-            $.fn.dataTable.tables({ visible: true, api: true }).columns.adjust();
-        });
-    }
-
-    if (window.ResizeObserver) {
-        const observer = new window.ResizeObserver(function () {
-            const width = content.getBoundingClientRect().width;
-            if (width !== previousWidth) {
-                previousWidth = width;
-                adjustTableWidths();
-            }
-        });
-        observer.observe(content);
-    } else {
-        $(window).on('resize', adjustTableWidths);
-        $(document).on('shown.lte.pushmenu collapsed-done.lte.pushmenu', function () {
-            window.setTimeout(adjustTableWidths, 350);
-        });
-    }
-});
 
 // building page onload functions for dynamic display according to dropdown
 

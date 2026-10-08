@@ -45,10 +45,6 @@ class ServiceProviderService
     {
         $serviceProviderData = ServiceProvider::select('*')->whereNull('deleted_at');
 
-        if (empty($data['order'])) {
-            $serviceProviderData->orderByDesc('created_at')->orderByDesc('id');
-        }
-
         return Datatables::of($serviceProviderData)
             ->filter(function ($query) use ($data) {
                 if ($data['company_name']) {

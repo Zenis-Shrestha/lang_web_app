@@ -6,6 +6,7 @@ namespace Database\Seeders;
 use Illuminate\Database\Seeder;
 use Spatie\Permission\Models\Role;
 use Spatie\Permission\Models\Permission;
+use DB;
 
 class PermissionsSeeder extends Seeder
 {
@@ -1915,16 +1916,16 @@ class PermissionsSeeder extends Seeder
 
         foreach ($grouped_permissions as $group) {
             foreach ($group['perms'] as $permission){
-                Permission::query()->firstOrCreate(
-                    [
+                $existPermission = DB::table('auth.permissions')
+                    ->where('name', $permission['name'])
+                    ->first();
+                if (!$existPermission) {
+                    Permission::create([
                         'name' => $permission['name'],
-                        'guard_name' => 'web',
-                    ],
-                    [
                         'type' => $permission['type'],
-                        'group' => $group['group'],
-                    ]
-                );
+                        'group' => $group['group']
+                    ]);
+                }
             }
         }
 
