@@ -947,24 +947,26 @@ class ApplicationService
      */
     public function getAllApplications(Request $request)
     {
+        $query = Application::select(
+                'applications.*',
+                'building_info.buildings.house_number AS house_address'
+            )
+            ->leftJoin(
+                'building_info.buildings',
+                'building_info.buildings.bin',
+                '=',
+                'applications.bin'
+            )
+            ->whereNull('applications.deleted_at');
 
-        if (Auth::user()->hasRole('Service Provider - Admin') || Auth::user()->hasRole('Service Provider - Help Desk')) {
-            return  Application::select('applications.*', 'building_info.buildings.house_number AS house_address')
-                ->leftJoin('building_info.buildings', 'building_info.buildings.bin', '=', 'applications.bin')
-                ->whereNull('applications.deleted_at')
-                ->where('applications.service_provider_id', Auth::user()->service_provider_id);
-        } else if (Auth::user()->hasRole('Treatment Plant - Admin')) {
-            return Application::select('applications.*', 'building_info.buildings.house_number AS house_address')
-                ->leftJoin('building_info.buildings', 'building_info.buildings.bin', '=', 'applications.bin')->whereHas("emptying", function ($q) use ($request) {
-                    $q->where("treatment_plant_id", "=", Auth::user()->treatment_plant_id)
-                        ->whereIn('emptying_status', [1, 2])
-                        ->whereNull('deleted_at');
-                });
-        } else {
-            return Application::select('applications.*', 'building_info.buildings.house_number AS house_address')
-                ->leftJoin('building_info.buildings', 'building_info.buildings.bin', '=', 'applications.bin')
-                ->whereNull('applications.deleted_at');
+        if (Auth::user()->hasRole('Service Provider - Help Desk')) {
+            return $query->where(
+                'applications.service_provider_id',
+                Auth::user()->service_provider_id ?? -1
+            );
         }
+
+        return OperationalDataAccessService::scopeApplicationQuery($query);
     }
 
     /**
@@ -1518,6 +1520,7 @@ class ApplicationService
 
         try {
             $application = Application::findOrFail($id);
+            OperationalDataAccessService::authorizeApplication($application);
             $application->update($request->all());
             if ($application->address != '-') {
                 $building = Building::where('bin', '=', $application->bin)->firstOrFail();
@@ -1561,6 +1564,7 @@ class ApplicationService
     {
         try {
             $application = Application::findOrFail($id);
+            OperationalDataAccessService::authorizeApplication($application);
             $revisions = Revision::all()
                 ->where('revisionable_type', get_class($application))
                 ->where('revisionable_id', $id)
@@ -1627,6 +1631,10 @@ class ApplicationService
         $query = DB::table('fsm.applications as a')
             ->leftJoin('building_info.buildings as b', 'b.bin', '=', 'a.bin')
             ->leftJoin('fsm.service_providers as s', 's.id', '=', 'a.service_provider_id')
+            ->leftJoin('fsm.emptyings as e', function ($join) {
+                $join->on('e.application_id', '=', 'a.id')
+                    ->whereNull('e.deleted_at');
+            })
             ->select(
                 'a.bin',
                 'b.house_number as house_address',
@@ -1649,15 +1657,17 @@ class ApplicationService
                 'a.feedback_status'
             )
             ->whereNull('a.deleted_at')
+            ->distinct()
             ->orderBy('a.bin');
 
-        // Apply additional conditions based on user roles and request parameters
-        if (Auth::user()->hasRole('Service Provider - Admin') || Auth::user()->hasRole('Service Provider - Help Desk')) {
+        if (Auth::user()->hasRole('Service Provider - Help Desk')) {
             $query->where('a.service_provider_id', Auth::user()->service_provider_id);
-        } elseif (Auth::user()->hasRole('Treatment Plant - Admin')) {
-            $query->whereHas('emptying', function ($q) {
-                $q->where('treatment_plant_id', Auth::user()->treatment_plant_id);
-            });
+        } else {
+            OperationalDataAccessService::scopeQuery(
+                $query,
+                'a.service_provider_id',
+                'e.treatment_plant_id'
+            );
         }
 
         // Apply filters based on request parameters
