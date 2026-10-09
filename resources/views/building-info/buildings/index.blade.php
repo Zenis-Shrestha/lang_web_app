@@ -212,7 +212,7 @@
                 <a href="#" id="export-kml" class="btn btn-info">{{ __('Export to KML') }}</a>
             @endcan
             @if ($canExportOwnerPii)
-                <button type="button" class="btn btn-danger" data-toggle="modal"
+                <button type="button" class="btn btn-info" data-toggle="modal"
                     data-target="#export-owner-pii-modal">
                     {{ __('Export Owner PII') }}
                 </button>
@@ -226,8 +226,12 @@
                         {{ __('Lock Owner PII') }}
                     </button>
                 </form>
-                <span class="badge badge-success ml-1">
-                    {{ __('Owner PII revealed for this list') }}
+                {{-- Present reveal state as a full toolbar-sized status instead
+                    of a small badge that can be missed beside the action buttons. --}}
+                <span class="btn btn-success disabled ml-1" role="status"
+                    aria-label="{{ __('Owner PII is currently visible') }}">
+                    <i class="fas fa-eye mr-1" aria-hidden="true"></i>
+                    {{ __('Owner PII is visible') }}
                 </span>
             @elseif ($canUnlockOwnerPiiList)
                 <button type="button" class="btn btn-info" data-toggle="modal"
@@ -298,15 +302,15 @@
                                                     <option value="">{{ __('Use Category') }}</option>
                                                 </select>
                                             </div>
-                                            @if ($piiListUnlocked)
-                                                <label for="owner_name"
-                                                    class="control-label col-md-2">{{ __('Owner Name') }}</label>
-                                                <div class="col-md-2">
-                                                    <input type="text" class="form-control" id="owner_name"
-                                                        maxlength="100" autocomplete="off"
-                                                        placeholder="{{ __('Owner Name') }}" />
-                                                </div>
-                                            @endif
+                                            {{-- Road Code remains visible in the middle of the
+                                                filter grid even while the PII-only owner-name
+                                                filter is unavailable. --}}
+                                            <label for="road_code"
+                                                class="control-label col-md-2">{{ __('Road Code') }}</label>
+                                            <div class="col-md-2">
+                                                <select class="form-control" id="road_code">
+                                                </select>
+                                            </div>
                                         </div>
                                         <div class="form-group row">
                                             <label for="toilet"
@@ -384,14 +388,18 @@
                                                     <input type="date" class="form-control" id="date_to"
                                                         placeholder="{{ __('Construction Date To') }}" onclick = 'this.showPicker();' />
                                                 </div>
-
-
-
-                                                <label for="road_code" class="control-label col-md-2">{{ __('Road Code') }}</label>
-                                                <div class="col-md-2">
-                                                    <select class="form-control" id="road_code">
-                                                    </select>
-                                                </div>
+                                                {{-- Owner Name is last because it exists only
+                                                    during an authorized PII reveal. Hiding it no
+                                                    longer leaves a gap between normal filters. --}}
+                                                @if ($piiListUnlocked)
+                                                    <label for="owner_name"
+                                                        class="control-label col-md-2">{{ __('Owner Name') }}</label>
+                                                    <div class="col-md-2">
+                                                        <input type="text" class="form-control" id="owner_name"
+                                                            maxlength="100" autocomplete="off"
+                                                            placeholder="{{ __('Owner Name') }}" />
+                                                    </div>
+                                                @endif
                                             </div>
                                             <div class="card-footer text-right">
                                                 <button type="submit" class="btn btn-info">{{ __('Filter') }}</button>

@@ -17,12 +17,15 @@ class OwnerPiiPresenter
     {
         $attributes = $owner->getAttributes();
 
+        // Locked Building surfaces use one fixed mask for every populated PII
+        // value. This keeps the detail page consistent with the DataTable and
+        // avoids revealing the value's initials, length, or formatting.
         return [
             'bin' => $attributes['bin'] ?? null,
-            'owner_name' => $this->maskName($attributes['owner_name'] ?? null),
-            'owner_gender' => $this->maskGender($attributes['owner_gender'] ?? null),
-            'owner_contact' => $this->maskContact($attributes['owner_contact'] ?? null),
-            'nid' => $this->maskNid($attributes['nid'] ?? null),
+            'owner_name' => $this->maskFully($attributes['owner_name'] ?? null),
+            'owner_gender' => $this->maskFully($attributes['owner_gender'] ?? null),
+            'owner_contact' => $this->maskFully($attributes['owner_contact'] ?? null),
+            'nid' => $this->maskFully($attributes['nid'] ?? null),
         ];
     }
 

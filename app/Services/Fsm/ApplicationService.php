@@ -245,15 +245,6 @@ class ApplicationService
                 inputId: 'house_address',
                 placeholder: __('House Number'),
             ),
-                new FormField(
-                    label: __('Owner Name'),
-                    labelFor: 'customer_name',
-                    labelClass: 'col-md-2 col-form-label ',
-                    inputType: 'text',
-                    inputId: 'customer_name',
-                    placeholder: __('Owner Name'),
-                ),
-
             ],
             [  
                 new FormField(
@@ -353,6 +344,17 @@ class ApplicationService
                     inputId: 'date_to',
                     required: true,
                     placeholder: __('Date To'),
+                ),
+                // Owner Name is conditional on an active PII reveal. Keeping
+                // it in the final group prevents a visible gap between normal
+                // filters when the field is omitted from the locked UI.
+                new FormField(
+                    label: __('Owner Name'),
+                    labelFor: 'customer_name',
+                    labelClass: 'col-md-2 col-form-label ',
+                    inputType: 'text',
+                    inputId: 'customer_name',
+                    placeholder: __('Owner Name'),
                 ),
             ],
         ];

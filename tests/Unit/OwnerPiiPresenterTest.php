@@ -40,7 +40,7 @@ class OwnerPiiPresenterTest extends TestCase
         parent::tearDown();
     }
 
-    public function test_it_returns_masked_owner_pii(): void
+    public function test_it_returns_fixed_masked_owner_pii(): void
     {
         $owner = new Owner();
         $owner->bin = 'TST0001';
@@ -52,10 +52,10 @@ class OwnerPiiPresenterTest extends TestCase
         $result = app(OwnerPiiPresenter::class)->presentMasked($owner);
 
         $this->assertSame('TST0001', $result['bin']);
-        $this->assertSame('T*** O****', $result['owner_name']);
-        $this->assertSame('***', $result['owner_gender']);
-        $this->assertSame('98******00', $result['owner_contact']);
-        $this->assertSame('TE********23', $result['nid']);
+        $this->assertSame('********', $result['owner_name']);
+        $this->assertSame('********', $result['owner_gender']);
+        $this->assertSame('********', $result['owner_contact']);
+        $this->assertSame('********', $result['nid']);
     }
 
     public function test_it_masks_legacy_plaintext_during_migration(): void
@@ -71,10 +71,10 @@ class OwnerPiiPresenterTest extends TestCase
 
         $result = app(OwnerPiiPresenter::class)->presentMasked($owner);
 
-        $this->assertSame('L***** O****', $result['owner_name']);
-        $this->assertSame('***', $result['owner_gender']);
-        $this->assertSame('98******78', $result['owner_contact']);
-        $this->assertSame('12*****89', $result['nid']);
+        $this->assertSame('********', $result['owner_name']);
+        $this->assertSame('********', $result['owner_gender']);
+        $this->assertSame('********', $result['owner_contact']);
+        $this->assertSame('********', $result['nid']);
     }
 
     public function test_it_preserves_null_values(): void
