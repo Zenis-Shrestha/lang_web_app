@@ -10,6 +10,17 @@ Developed By: Innovative Solution Pvt. Ltd. (ISPL)   -->
     </style>
 @endpush
 @section('content')
+    @php
+        // Full Application PII export is deliberately narrower than the
+        // selected-BIN export because it can disclose the complete authorized
+        // customer dataset in one operation.
+        $canExportAllCustomerPii = $canExportCustomerPii
+            && Auth::user()->hasAnyRole([
+                'Super Admin',
+                'Municipality - Super Admin',
+                'Municipality - IT Admin',
+            ]);
+    @endphp
     @if (!$customerPiiListUnlocked && $canUnlockCustomerPii)
         <div class="modal fade" id="application-customer-pii-modal" tabindex="-1" role="dialog"
             aria-labelledby="application-customer-pii-title" aria-hidden="true">
@@ -70,14 +81,49 @@ Developed By: Innovative Solution Pvt. Ltd. (ISPL)   -->
                                 {{ __('The downloaded CSV contains sensitive customer information. Handle it securely and delete it when it is no longer required.') }}
                             </div>
                             <div class="form-group">
-                                <label for="application_id_file">{{ __('Application ID List CSV') }}</label>
-                                <input id="application_id_file" type="file" accept=".csv,text/csv"
-                                    class="form-control-file" required>
-                                <input id="application_id_csv" name="application_id_csv" type="hidden" value="">
+                                <label class="d-block">{{ __('Export Scope') }}</label>
+                                @if ($canExportAllCustomerPii)
+                                    <div class="custom-control custom-radio mb-2">
+                                        <input id="application_export_mode_all" name="application_export_mode"
+                                            type="radio" value="all" class="custom-control-input" required>
+                                        <label class="custom-control-label" for="application_export_mode_all">
+                                            {{ __('Export all authorized applications') }}
+                                        </label>
+                                    </div>
+                                @endif
+                                <div class="custom-control custom-radio">
+                                    <input id="application_export_mode_bin_list" name="application_export_mode"
+                                        type="radio" value="bin_list" class="custom-control-input" required>
+                                    <label class="custom-control-label" for="application_export_mode_bin_list">
+                                        {{ __('Export applications from BIN list') }}
+                                    </label>
+                                </div>
+                            </div>
+                            @if ($canExportAllCustomerPii)
+                                <div id="application-pii-export-all-confirmation" class="alert alert-danger"
+                                    style="display: none">
+                                    <p class="mb-2">
+                                        {{ __('This will export customer PII for every Application record you are authorized to access. No BIN filter will be applied.') }}
+                                    </p>
+                                    <div class="custom-control custom-checkbox">
+                                        <input id="confirm_application_export_all"
+                                            name="confirm_application_export_all" type="checkbox" value="1"
+                                            class="custom-control-input">
+                                        <label class="custom-control-label" for="confirm_application_export_all">
+                                            {{ __('I understand and intend to export all authorized Application customer PII.') }}
+                                        </label>
+                                    </div>
+                                </div>
+                            @endif
+                            <div id="application-pii-bin-list-fields" class="form-group" style="display: none">
+                                <label for="application_bin_file">{{ __('BIN List CSV') }}</label>
+                                <input id="application_bin_file" type="file" accept=".csv,text/csv"
+                                    class="form-control-file">
+                                <input id="application_bin_csv" name="application_bin_csv" type="hidden" value="">
                                 <small class="form-text text-muted">
-                                    {{ __('Upload a CSV containing an application_id header and one Application ID per row.') }}
+                                    {{ __('Upload a CSV containing a bin header and one BIN per row. All authorized Applications matching each BIN will be exported.') }}
                                 </small>
-                                <div id="application-id-file-validation" class="small mt-1" role="status"
+                                <div id="application-bin-file-validation" class="small mt-1" role="status"
                                     aria-live="polite"></div>
                             </div>
                             <div class="form-group mb-0">
@@ -114,7 +160,7 @@ Developed By: Innovative Solution Pvt. Ltd. (ISPL)   -->
                 <a href="{{ $exportBtnLink }}" class="btn btn-info" id="export" onclick="exportToCsv(event)" >{{ __('Export to CSV') }}</a>
             @endif
             @if ($canExportCustomerPii)
-                <button type="button" class="btn btn-danger" data-toggle="modal"
+                <button type="button" class="btn btn-info" data-toggle="modal"
                     data-target="#application-customer-pii-export-modal">
                     {{ __('Export Customer PII') }}
                 </button>
@@ -125,8 +171,12 @@ Developed By: Innovative Solution Pvt. Ltd. (ISPL)   -->
                     @csrf
                     <button type="submit" class="btn btn-warning">{{ __('Lock Owner PII') }}</button>
                 </form>
-                <span class="badge badge-success ml-1">
-                    {{ __('Owner PII revealed for the Application module') }}
+                {{-- Use the same clear, toolbar-sized reveal indicator as the
+                    Building module instead of a small status badge. --}}
+                <span class="btn btn-success disabled ml-1" role="status"
+                    aria-label="{{ __('Owner PII is currently visible') }}">
+                    <i class="fas fa-eye mr-1" aria-hidden="true"></i>
+                    {{ __('Owner PII is visible') }}
                 </span>
             @elseif ($canUnlockCustomerPii)
                 <button type="button" class="btn btn-info" data-toggle="modal"
@@ -327,21 +377,36 @@ Developed By: Innovative Solution Pvt. Ltd. (ISPL)   -->
         @if ($canExportCustomerPii)
             $(function() {
                 var applicationPiiCsvIsValid = false;
-                var applicationPiiMaxIds = {{ (int) config('pii.export.max_application_ids', 5000) }};
+                var applicationPiiMaxBins = {{ (int) config('pii.export.max_bins', 5000) }};
                 var applicationPiiMaxFileBytes = {{ (int) config('pii.export.max_file_kb', 2048) * 1024 }};
 
                 function showApplicationPiiCsvStatus(message, valid) {
-                    $('#application-id-file-validation')
+                    $('#application-bin-file-validation')
                         .text(message)
                         .toggleClass('text-success', valid)
                         .toggleClass('text-danger', !valid);
                 }
 
                 function updateApplicationPiiExportButton() {
+                    var exportMode = $('input[name="application_export_mode"]:checked').val();
                     var hasPassword = $('#application_export_password').val().length > 0;
+                    var scopeIsReady = exportMode === 'all'
+                        ? $('#confirm_application_export_all').is(':checked')
+                        : exportMode === 'bin_list' && applicationPiiCsvIsValid;
 
                     $('#application-customer-pii-export-submit')
-                        .prop('disabled', !applicationPiiCsvIsValid || !hasPassword);
+                        .prop('disabled', !scopeIsReady || !hasPassword);
+                }
+
+                function resetApplicationPiiExportMode() {
+                    applicationPiiCsvIsValid = false;
+                    $('#application_bin_file').val('');
+                    $('#application_bin_csv').val('');
+                    $('#confirm_application_export_all').prop('checked', false);
+                    $('#application-pii-bin-list-fields, #application-pii-export-all-confirmation').hide();
+                    $('#application-bin-file-validation').text('')
+                        .removeClass('text-success text-danger');
+                    updateApplicationPiiExportButton();
                 }
 
                 function parseApplicationPiiCsvLine(line) {
@@ -375,17 +440,17 @@ Developed By: Innovative Solution Pvt. Ltd. (ISPL)   -->
                     var lines = csvText.replace(/^\uFEFF/, '').split(/\r?\n/);
                     var header = parseApplicationPiiCsvLine(lines.shift() || '')
                         .map(function(value) { return value.trim().toLowerCase(); });
-                    var idIndex = header.indexOf('application_id');
+                    var binIndex = header.indexOf('bin');
 
-                    if (idIndex === -1) {
+                    if (binIndex === -1) {
                         return {
                             valid: false,
-                            message: "{{ __('The CSV must contain an application_id header.') }}"
+                            message: "{{ __('The CSV must contain a bin header.') }}"
                         };
                     }
 
-                    var uniqueIds = {};
-                    var idCount = 0;
+                    var uniqueBins = {};
+                    var binCount = 0;
 
                     for (var rowIndex = 0; rowIndex < lines.length; rowIndex++) {
                         if (lines[rowIndex].trim() === '') {
@@ -393,46 +458,62 @@ Developed By: Innovative Solution Pvt. Ltd. (ISPL)   -->
                         }
 
                         var row = parseApplicationPiiCsvLine(lines[rowIndex]);
-                        var id = (row[idIndex] || '').trim();
+                        var bin = (row[binIndex] || '').trim().toUpperCase();
 
-                        if (!/^[1-9][0-9]*$/.test(id)) {
+                        if (!/^[A-Z0-9_-]{1,100}$/.test(bin)) {
                             return {
                                 valid: false,
-                                message: "{{ __('Invalid Application ID on CSV row') }}" + ' ' + (rowIndex + 2) + '.'
+                                message: "{{ __('Invalid BIN on CSV row') }}" + ' ' + (rowIndex + 2) + '.'
                             };
                         }
 
-                        if (!uniqueIds[id]) {
-                            uniqueIds[id] = true;
-                            idCount++;
+                        if (!uniqueBins[bin]) {
+                            uniqueBins[bin] = true;
+                            binCount++;
                         }
 
-                        if (idCount > applicationPiiMaxIds) {
+                        if (binCount > applicationPiiMaxBins) {
                             return {
                                 valid: false,
-                                message: "{{ __('The CSV contains too many unique Application IDs.') }}"
+                                message: "{{ __('The CSV contains too many unique BIN values.') }}"
                             };
                         }
                     }
 
-                    if (idCount === 0) {
+                    if (binCount === 0) {
                         return {
                             valid: false,
-                            message: "{{ __('The CSV does not contain any Application IDs.') }}"
+                            message: "{{ __('The CSV does not contain any BIN values.') }}"
                         };
                     }
 
                     return {
                         valid: true,
-                        message: idCount + " {{ __('unique Application IDs validated.') }}"
+                        message: binCount + " {{ __('unique BIN values validated.') }}"
                     };
                 }
 
-                $('#application_id_file').on('change', function() {
+                $('input[name="application_export_mode"]').on('change', function() {
+                    var exportMode = $(this).val();
+
+                    // Clear stale data whenever the user changes scope so an
+                    // invalid/old BIN list can never influence a full export.
+                    applicationPiiCsvIsValid = false;
+                    $('#application_bin_file').val('');
+                    $('#application_bin_csv').val('');
+                    $('#confirm_application_export_all').prop('checked', false);
+                    $('#application-bin-file-validation').text('')
+                        .removeClass('text-success text-danger');
+                    $('#application-pii-bin-list-fields').toggle(exportMode === 'bin_list');
+                    $('#application-pii-export-all-confirmation').toggle(exportMode === 'all');
+                    updateApplicationPiiExportButton();
+                });
+
+                $('#application_bin_file').on('change', function() {
                     var file = this.files && this.files.length ? this.files[0] : null;
 
                     applicationPiiCsvIsValid = false;
-                    $('#application_id_csv').val('');
+                    $('#application_bin_csv').val('');
                     updateApplicationPiiExportButton();
 
                     if (!file) {
@@ -441,12 +522,12 @@ Developed By: Innovative Solution Pvt. Ltd. (ISPL)   -->
                     }
 
                     if (!/\.csv$/i.test(file.name)) {
-                        showApplicationPiiCsvStatus("{{ __('The Application ID list must be a CSV file.') }}", false);
+                        showApplicationPiiCsvStatus("{{ __('The BIN list must be a CSV file.') }}", false);
                         return;
                     }
 
                     if (file.size > applicationPiiMaxFileBytes) {
-                        showApplicationPiiCsvStatus("{{ __('The Application ID list CSV is too large.') }}", false);
+                        showApplicationPiiCsvStatus("{{ __('The BIN list CSV is too large.') }}", false);
                         return;
                     }
 
@@ -456,13 +537,13 @@ Developed By: Innovative Solution Pvt. Ltd. (ISPL)   -->
                         var result = validateApplicationPiiCsv(csvText);
 
                         applicationPiiCsvIsValid = result.valid;
-                        $('#application_id_csv').val(result.valid ? csvText : '');
+                        $('#application_bin_csv').val(result.valid ? csvText : '');
                         showApplicationPiiCsvStatus(result.message, result.valid);
                         updateApplicationPiiExportButton();
                     };
                     reader.onerror = function() {
                         showApplicationPiiCsvStatus(
-                            "{{ __('The Application ID list CSV could not be read.') }}",
+                            "{{ __('The BIN list CSV could not be read.') }}",
                             false
                         );
                         updateApplicationPiiExportButton();
@@ -470,13 +551,20 @@ Developed By: Innovative Solution Pvt. Ltd. (ISPL)   -->
                     reader.readAsText(file);
                 });
 
-                $('#application_export_password').on('input', updateApplicationPiiExportButton);
+                $('#application_export_password, #confirm_application_export_all').on(
+                    'input change',
+                    updateApplicationPiiExportButton
+                );
 
                 $('#application-customer-pii-export-form').on('submit', function(event) {
                     event.preventDefault();
                     var form = $(this);
+                    var exportMode = $('input[name="application_export_mode"]:checked').val();
+                    var scopeIsReady = exportMode === 'all'
+                        ? $('#confirm_application_export_all').is(':checked')
+                        : exportMode === 'bin_list' && applicationPiiCsvIsValid;
 
-                    if (!applicationPiiCsvIsValid || form.data('submitting')) {
+                    if (!scopeIsReady || form.data('submitting')) {
                         return;
                     }
 
@@ -539,10 +627,7 @@ Developed By: Innovative Solution Pvt. Ltd. (ISPL)   -->
                         $('#application-customer-pii-export-modal').modal('hide');
                         form[0].reset();
                         form.data('submitting', false);
-                        applicationPiiCsvIsValid = false;
-                        $('#application_id_csv').val('');
-                        $('#application-id-file-validation').text('')
-                            .removeClass('text-success text-danger');
+                        resetApplicationPiiExportMode();
                         $('#application-customer-pii-export-submit')
                             .text("{{ __('Export Customer PII') }}");
                         updateApplicationPiiExportButton();

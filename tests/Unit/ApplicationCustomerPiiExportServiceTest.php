@@ -32,4 +32,21 @@ class ApplicationCustomerPiiExportServiceTest extends TestCase
         $this->expectException(ValidationException::class);
         $service->parseCsvText("application_id\nAPP-12\n");
     }
+
+    public function test_it_parses_normalizes_and_deduplicates_bins(): void
+    {
+        $service = app(ApplicationCustomerPiiExportService::class);
+
+        $bins = $service->parseBinCsvText("bin\nb016742\nB016741\nB016742\n");
+
+        $this->assertSame(['B016742', 'B016741'], $bins);
+    }
+
+    public function test_bin_export_requires_a_bin_header(): void
+    {
+        $service = app(ApplicationCustomerPiiExportService::class);
+
+        $this->expectException(ValidationException::class);
+        $service->parseBinCsvText("application_id\n12\n");
+    }
 }
