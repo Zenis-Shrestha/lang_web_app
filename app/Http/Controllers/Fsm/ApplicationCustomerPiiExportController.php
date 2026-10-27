@@ -199,9 +199,8 @@ class ApplicationCustomerPiiExportController extends Controller
         $user = $request->user();
         $allowed = $user
             && $user->can('List Applications')
-            && $user->can('View Application Customer PII')
-            && $user->can('Unlock Application Customer PII')
-            && $user->can('Export Application Customer PII');
+            && ($user->can('Add Application')
+                || $user->can('Edit Application'));
 
         if (!$allowed) {
             $this->audit->record(

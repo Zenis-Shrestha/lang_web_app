@@ -90,9 +90,8 @@ The Property Tax list is masked by default. Selecting **View Property Tax Owner 
 
 1. An authenticated user.
 2. `List Property Tax Collection` permission.
-3. `View Property Tax Owner PII` permission.
-4. `Unlock Property Tax Owner PII` permission.
-5. Successful verification of the user's current login password.
+3. `Import Property Tax Collection From CSV`, which is the module's write-equivalent because Property Tax has no Add/Edit action.
+4. Successful verification of the user's current login password.
 
 After successful verification, `PropertyTaxPiiAccessService::unlock()` stores a Property Tax-specific five-minute grant containing the user ID and expiry time. It does not store the password, decrypted owner data or encryption key.
 
@@ -120,9 +119,7 @@ The dedicated export accepts a CSV containing a `tax_code` header and one Tax Co
 `PropertyTaxPiiExportController::export()` requires:
 
 -   `List Property Tax Collection`
--   `View Property Tax Owner PII`
--   `Unlock Property Tax Owner PII`
--   `Export Property Tax Owner PII`
+-   `Import Property Tax Collection From CSV`
 -   Successful current-password verification for the export request
 
 The reveal session alone is not enough to export. The password must be re-entered for the export operation.
@@ -141,11 +138,7 @@ The downloaded CSV contains sensitive plaintext. It must be moved to approved en
 
 ### Permissions and Routes
 
-Permissions are created by `database\seeders\PropertyTaxPiiPermissionsSeeder.php`:
-
--   `View Property Tax Owner PII`
--   `Unlock Property Tax Owner PII`
--   `Export Property Tax Owner PII`
+Property Tax PII does not introduce a separate permission. A user may reveal and export Property Tax owner PII only when the user has List Property Tax Collection and Import Property Tax Collection From CSV. Password re-entry remains mandatory.
 
 | Method | Route | Route name | Purpose |
 |--------|-------|------------|---------|

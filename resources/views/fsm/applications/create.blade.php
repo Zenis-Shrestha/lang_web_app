@@ -158,6 +158,10 @@ Developed By: Innovative Solution Pvt. Ltd. (ISPL)   -->
         $('#autofill-wrapper').hide();
     }
 
+    // Changing between known/unknown house-number modes must update both the
+    // visibility and enabled state of the Same as Owner control immediately.
+    syncSameAsOwnerControl();
+
     // Scheduled application address fields are always view-only, even if the
     // House Number state is toggled.
     if (typeof lockConfirmAddressFields === 'function') {
@@ -177,8 +181,40 @@ Developed By: Innovative Solution Pvt. Ltd. (ISPL)   -->
     );
     const scheduleRoadText = @json($scheduleRoadText ?? null);
     const scheduleBinText = @json($scheduleBinText ?? null);
+    const ownerPiiLookupUnlocked = @json((bool) $ownerPiiLookupUnlocked);
     const ownerPiiMask = '********';
     let ownerPiiRevealed = false;
+
+    function ownerFieldsContainUsablePii() {
+        const values = [
+            $('#customer_name').val(),
+            $('#customer_gender').val(),
+            $('#customer_contact').val()
+        ];
+
+        return values.every(function (value) {
+            const normalized = $.trim(String(value ?? ''));
+            return normalized !== '' && normalized !== ownerPiiMask;
+        });
+    }
+
+    function syncSameAsOwnerControl() {
+        const houseNumberKnown = $('#is_anf').val() !== '1';
+        const canCopyOwner = houseNumberKnown &&
+            ownerPiiLookupUnlocked &&
+            ownerPiiRevealed &&
+            ownerFieldsContainUsablePii();
+
+        // Keep the convenience control visible in the normal application flow
+        // from initial page load. It remains disabled until the server-authorized
+        // owner lookup has supplied usable plaintext values.
+        $('#autofill-wrapper').toggle(houseNumberKnown);
+        $('#autofill').prop('disabled', !canCopyOwner);
+
+        if (!canCopyOwner) {
+            $('#autofill').prop('checked', false);
+        }
+    }
 
     function autoFillDetails() {
         $(document).ready(function() {
@@ -245,6 +281,7 @@ Developed By: Innovative Solution Pvt. Ltd. (ISPL)   -->
             .prop('disabled', true);
 
         $('#autofill').prop('checked', false).prop('disabled', true);
+        syncSameAsOwnerControl();
     }
 
     function applyOwnerPiiFromBuildingLookup(response) {
@@ -277,7 +314,7 @@ Developed By: Innovative Solution Pvt. Ltd. (ISPL)   -->
         // is not an authorization decision and is reset whenever the BIN is
         // changed or the server reports that the grant expired.
         ownerPiiRevealed = true;
-        $('#autofill').prop('disabled', false);
+        syncSameAsOwnerControl();
     }
 
     function lockConfirmAddressFields() {
@@ -364,6 +401,7 @@ Developed By: Innovative Solution Pvt. Ltd. (ISPL)   -->
         $('#autofill-wrapper').hide();
         $('#containment_info, #accessibility_info').remove();
         ownerPiiRevealed = false;
+        syncSameAsOwnerControl();
     }
 
     function onAddressChange() {
@@ -576,7 +614,7 @@ Developed By: Innovative Solution Pvt. Ltd. (ISPL)   -->
             }
         }
 
-        $('#autofill').prop('disabled', true);
+        syncSameAsOwnerControl();
 
         $('#bin').prepend('<option selected=""></option>').select2({
             ajax: {
@@ -639,16 +677,7 @@ Developed By: Innovative Solution Pvt. Ltd. (ISPL)   -->
 
         $('#bin').on('change', onAddressChange);
         $('#customer_name, #customer_gender, #customer_contact').on('change keyup input', function() {
-            if ($('#customer_name').val() != '' && $('#customer_gender').val() != '' ) {
-                if ($('#is_anf').val() !== '1') {
-                    $('#autofill-wrapper').show();
-                }
-            } else {
-                $('#autofill-wrapper').hide();
-                if ($('#autofill').is(':checked')) {
-                    $('#autofill').prop('checked', false);
-                }
-            }
+            syncSameAsOwnerControl();
         });
 
        $('#create_application_form').on('submit', function (e) {
@@ -797,6 +826,15 @@ Developed By: Innovative Solution Pvt. Ltd. (ISPL)   -->
         if (savedApplicantName && savedApplicantName !== 'null' && !$('#applicant_name').val()) $('#applicant_name').val(savedApplicantName);
         if (savedApplicantGender && savedApplicantGender !== 'null' && !$('#applicant_gender').val()) $('#applicant_gender').val(savedApplicantGender);
         if (savedApplicantContact && savedApplicantContact !== 'null' && !$('#applicant_contact').val()) $('#applicant_contact').val(savedApplicantContact);
+
+        // After a validation/database redirect, Laravel restores the submitted
+        // owner fields with old input. Re-enable Same as Owner only when the
+        // server-side owner lookup grant is still active and the restored values
+        // are real PII rather than the locked mask.
+        if (ownerPiiLookupUnlocked && ownerFieldsContainUsablePii()) {
+            ownerPiiRevealed = true;
+        }
+        syncSameAsOwnerControl();
         // Store selected values in localStorage
         $('#road_code').on('change', function() {
             var selectedRoadCode = $(this).find('option:selected').text();

@@ -46,8 +46,7 @@
       "applicant_name",
       "applicant_gender",
       "applicant_contact",
-      "service_provider_id",
-      "desludging_vehicle_size"
+      "service_provider_id"
     ]
   }
 ]

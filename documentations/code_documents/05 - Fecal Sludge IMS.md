@@ -1189,7 +1189,7 @@ Applicant information is intentionally separate:
 
 #### Application PII Access Flow
 
-ApplicationPiiAccessController::unlockList() requires List Applications, View Application Customer PII and Unlock Application Customer PII. It verifies the user's current login password and creates a five-minute Application-specific privileged session.
+ApplicationPiiAccessController::unlockList() requires List Applications and either Add Application or Edit Application permission. It verifies the user's current login password and creates a five-minute Application-specific privileged session.
 
 The Application grant is separate from the Building Owner PII grant. Revealing Building PII does not automatically reveal Application PII, and revealing Application PII does not unlock the Building module.
 
@@ -1271,11 +1271,7 @@ ApplicationController applies pii.no-cache middleware to getData, buildingDetail
 
 #### Application PII Permissions and Routes
 
-Permissions created by database\\seeders\\ApplicationPiiPermissionsSeeder.php:
-
--   View Application Customer PII
--   Unlock Application Customer PII
--   Export Application Customer PII
+Application PII does not introduce a separate permission. A user may reveal and export Application customer PII only when the user has List Applications and either Add Application or Edit Application. Password re-entry remains mandatory for reveal and export operations. Full-dataset export remains restricted to the approved administrative roles; other eligible users can export selected BIN records.
 
 Routes under the authenticated fsm group:
 

@@ -64,9 +64,7 @@ class TaxPaymentController extends Controller
         $canUnlockPropertyTaxPii = $this->piiAccess->canUnlock($user);
         $canExportPropertyTaxPii = $user
             && $user->can('List Property Tax Collection')
-            && $user->can('View Property Tax Owner PII')
-            && $user->can('Unlock Property Tax Owner PII')
-            && $user->can('Export Property Tax Owner PII');
+            && $user->can('Import Property Tax Collection From CSV');
         $propertyTaxPiiUnlockSeconds = $propertyTaxPiiUnlocked
             ? $this->piiAccess->secondsRemaining($user)
             : 0;

@@ -109,8 +109,7 @@ class OwnerPiiAccessController extends Controller
     {
         $user = $request->user();
         $allowed = $user
-            && $user->can('Unlock Owner PII')
-            && $user->can('View Owner PII')
+            && $this->piiAccess->canUnlock($user)
             && $user->can('List Building Structures');
 
         if (!$allowed) {

@@ -376,7 +376,7 @@ Controller: app\\Http\\Controllers\\BuildingInfo\\OwnerPiiAccessController.php
 
 | **Function**    | unlockList(Request $request)                                                                                                                                                                  |
 |-----------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| **Description** | Requires List Building Structures, View Owner PII and Unlock Owner PII permissions, then verifies the current login password. Creates a short-lived all-owner session for list and view scopes. |
+| **Description** | Requires List Building Structures and either Add Building Structure or Edit Building Structure permission, then verifies the current login password. Creates a short-lived all-owner session for list and view scopes. |
 | **Parameters**  | Current password                                                                                                                                                                               |
 | **Return**      | Redirects to the Building list with success or validation error                                                                                                                                |
 | **Remarks**     | Adds edit scope only if the user also has Edit Building Structure permission. The default duration is five minutes and both successful and failed attempts are audited.                         |
@@ -462,11 +462,7 @@ Audit records can include the user, Building public_id, event, result, authentic
 
 #### Permissions and Routes
 
-Permissions created by database\\seeders\\OwnerPiiPermissionsSeeder.php:
-
--   View Owner PII
--   Unlock Owner PII
--   Export Owner PII
+Building PII does not introduce a separate permission. A user may reveal and export Building owner PII only when the user has List Building Structures and either Add Building Structure or Edit Building Structure. Password re-entry remains mandatory for reveal and export operations. Full-dataset export remains restricted to the approved administrative roles; other eligible users can export selected BIN records.
 
 Routes under the authenticated building-info group:
 

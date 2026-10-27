@@ -1528,6 +1528,12 @@ class EmptyingService
                 // --- Image upload required on final trip ---
                 $allowedFileExt = ['jpg', 'jpeg'];
 
+                // The new multi-trip flow writes the final-trip evidence to
+                // these local-disk folders. Ensure they exist on fresh/test
+                // installations instead of assuming a manually-created path.
+                Storage::disk('local')->makeDirectory('public/emptyings/houses');
+                Storage::disk('local')->makeDirectory('public/emptyings/receipts');
+
                 if (!$request->hasFile('receipt_image') || !$request->hasFile('house_image')) {
                     DB::rollBack();
 

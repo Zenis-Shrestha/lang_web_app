@@ -5,11 +5,6 @@
 @section('content')
     @php
         $piiExportUser = auth()->user();
-        $canExportOwnerPii = $piiExportUser
-            && $piiExportUser->can('List Building Structures')
-            && $piiExportUser->can('View Owner PII')
-            && $piiExportUser->can('Unlock Owner PII')
-            && $piiExportUser->can('Export Owner PII');
         // Full-dataset export is deliberately narrower than selected-BIN
         // export because Owner/Building rows do not contain municipality_id.
         $canExportAllOwnerPii = $canExportOwnerPii

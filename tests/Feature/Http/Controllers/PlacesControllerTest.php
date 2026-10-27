@@ -520,8 +520,17 @@ class PlacesControllerTest extends TestCase
 
     protected function getUserWithRole(string $role): User
     {
-        Permission::firstOrCreate(['name' => 'List Places']);
-        Permission::firstOrCreate(['name' => 'Delete Places']);
+        // The project permission table requires group/type metadata. Supplying
+        // it here keeps the v2.0.1 Places regression suite compatible with the
+        // real auth schema when the permissions are absent in a test database.
+        Permission::firstOrCreate(
+            ['name' => 'List Places', 'guard_name' => 'web'],
+            ['group' => 'Places', 'type' => 'List']
+        );
+        Permission::firstOrCreate(
+            ['name' => 'Delete Places', 'guard_name' => 'web'],
+            ['group' => 'Places', 'type' => 'Delete']
+        );
 
         $user = User::role($role)->first();
 

@@ -129,6 +129,9 @@ class BuildingController extends Controller
         $page_title = __("Buildings");
         $piiListUnlocked = $this->ownerPiiListIsUnlocked();
         $canUnlockOwnerPiiList = $this->piiAccessService->canUnlock(Auth::user());
+        $canExportOwnerPii = Auth::user()->can('List Building Structures')
+            && (Auth::user()->can('Add Building Structure')
+                || Auth::user()->can('Edit Building Structure'));
         $piiListUnlockSeconds = $piiListUnlocked
             ? $this->piiAccessService->secondsRemaining(
                 Auth::user(),
@@ -164,6 +167,7 @@ class BuildingController extends Controller
             'floorCount',
             'piiListUnlocked',
             'canUnlockOwnerPiiList',
+            'canExportOwnerPii',
             'piiListUnlockSeconds'
         ));
     }

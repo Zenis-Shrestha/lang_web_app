@@ -70,9 +70,8 @@ class ApplicationController extends Controller
         $customerPiiListUnlocked = $this->customerPiiListIsUnlocked();
         $canUnlockCustomerPii = $this->applicationPiiAccess->canUnlock(Auth::user());
         $canExportCustomerPii = Auth::user()->can('List Applications')
-            && Auth::user()->can('View Application Customer PII')
-            && Auth::user()->can('Unlock Application Customer PII')
-            && Auth::user()->can('Export Application Customer PII');
+            && (Auth::user()->can('Add Application')
+                || Auth::user()->can('Edit Application'));
         $customerPiiUnlockSeconds = $customerPiiListUnlocked
             ? $this->applicationPiiAccess->secondsRemaining(
                 Auth::user(),

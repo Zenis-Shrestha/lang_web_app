@@ -226,9 +226,8 @@ class OwnerPiiExportController extends Controller
         $user = $request->user();
         $allowed = $user
             && $user->can('List Building Structures')
-            && $user->can('View Owner PII')
-            && $user->can('Unlock Owner PII')
-            && $user->can('Export Owner PII');
+            && ($user->can('Add Building Structure')
+                || $user->can('Edit Building Structure'));
 
         if (!$allowed) {
             $this->audit->record(

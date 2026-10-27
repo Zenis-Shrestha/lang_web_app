@@ -33,9 +33,7 @@ class PropertyTaxPiiExportController extends Controller
         $user = $request->user();
         $allowed = $user
             && $user->can('List Property Tax Collection')
-            && $user->can('View Property Tax Owner PII')
-            && $user->can('Unlock Property Tax Owner PII')
-            && $user->can('Export Property Tax Owner PII');
+            && $user->can('Import Property Tax Collection From CSV');
 
         abort_unless($allowed, 403);
         $maximumFileSize = max(1, (int) config('pii.export.max_file_kb', 2048));

@@ -127,7 +127,8 @@ class EmptyingControllerTest extends TestCase
         $response->assertSessionDoesntHaveErrors();
         $this->assertTrue(
             DB::table('fsm.emptyings')->where('receipt_number', $uniqueReceipt)->exists(),
-            'Emptying record was not created in database.'
+            'Emptying record was not created in database. ' .
+                (string) $response->getSession()->get('error', '')
         );
     }
 

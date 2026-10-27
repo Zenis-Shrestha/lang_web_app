@@ -689,6 +689,12 @@ class PermissionsSeeder extends Seeder
                         "name" => "Edit Application"
                     ],
                     [
+                        // v2.0.1new-modules checks this ability before showing
+                        // the per-application emptying scheduling action.
+                        "type" => "Edit",
+                        "name" => "Proposed Emptying Date"
+                    ],
+                    [
                         "type" => "Delete",
                         "name" => "Delete Application"
                     ],

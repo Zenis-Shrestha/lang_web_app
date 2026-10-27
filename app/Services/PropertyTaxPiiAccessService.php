@@ -26,8 +26,7 @@ class PropertyTaxPiiAccessService
     public function canUnlock(?User $user): bool
     {
         return $user
-            && $user->can('View Property Tax Owner PII')
-            && $user->can('Unlock Property Tax Owner PII');
+            && $user->can('Import Property Tax Collection From CSV');
     }
 
     public function isUnlocked(User $user): bool

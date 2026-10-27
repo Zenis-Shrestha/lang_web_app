@@ -2,6 +2,7 @@
 
 namespace Tests\Feature\Fsm\Concerns;
 
+use App\Models\BuildingInfo\Owner;
 use App\Models\Fsm\ServiceProvider;
 use App\Models\User;
 use Illuminate\Support\Facades\DB;
@@ -78,13 +79,14 @@ trait CreatesDesludgingTestData
             'updated_at' => now(),
         ]);
 
-        DB::table('building_info.owners')->insert([
+        // Use the Owner model so the merged PII layer encrypts these values in
+        // exactly the same way as production writes. Direct DB insertion from
+        // the original new-modules fixture would leave forbidden plaintext.
+        Owner::create([
             'bin' => $bin,
             'owner_name' => 'Test Owner',
             'owner_gender' => 'Male',
             'owner_contact' => 9800000000,
-            'created_at' => now(),
-            'updated_at' => now(),
         ]);
 
         DB::table('fsm.containments')->insert([

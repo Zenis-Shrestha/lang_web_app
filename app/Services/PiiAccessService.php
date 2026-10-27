@@ -51,8 +51,8 @@ class PiiAccessService
     public function canUnlock(?User $user): bool
     {
         return $user
-            && $user->can('View Owner PII')
-            && $user->can('Unlock Owner PII');
+            && ($user->can('Add Building Structure')
+                || $user->can('Edit Building Structure'));
     }
 
     public function isUnlocked(

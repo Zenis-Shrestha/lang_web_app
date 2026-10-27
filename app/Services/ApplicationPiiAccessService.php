@@ -42,8 +42,8 @@ class ApplicationPiiAccessService
     public function canUnlock(?User $user): bool
     {
         return $user
-            && $user->can('View Application Customer PII')
-            && $user->can('Unlock Application Customer PII');
+            && ($user->can('Add Application')
+                || $user->can('Edit Application'));
     }
 
     public function isUnlocked(
