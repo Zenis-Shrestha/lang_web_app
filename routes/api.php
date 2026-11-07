@@ -62,7 +62,11 @@ Route::group([
     'middleware' => 'auth:sanctum'
 ], function (){
     Route::prefix('gis')->group(function () {
-        Route::get('/wms', [GISProxyController::class, 'wms'])
+        // A map screen loads many tiles at once, so tiles have their own limit
+        // and do not use up the shared API limit.
+        Route::get('/wms', [GISProxyController::class, 'mobileWms'])
+            ->withoutMiddleware('throttle:api')
+            ->middleware('throttle:gis-tiles')
             ->name('mobile.gis.wms');
     });
 
