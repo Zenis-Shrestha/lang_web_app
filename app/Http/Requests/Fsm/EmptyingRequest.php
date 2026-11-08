@@ -9,6 +9,9 @@ use Illuminate\Support\Facades\DB;
 
 class EmptyingRequest extends FormRequest
 {
+    // Largest house/receipt photo accepted, in KB (Laravel's file max unit)
+    public const IMAGE_MAX_KB = 20480;
+
     public function authorize(): bool
     {
         return true;
@@ -117,7 +120,7 @@ class EmptyingRequest extends FormRequest
                     'nullable',
                     'file',
                     'mimes:jpeg,jpg',
-                    'max:5120',
+                    'max:' . self::IMAGE_MAX_KB,
                     'required_without:house_image_existing',
                 ],
                 'house_image_existing'   => ['nullable', 'string'],
@@ -125,7 +128,7 @@ class EmptyingRequest extends FormRequest
                     'nullable',
                     'file',
                     'mimes:jpeg,jpg',
-                    'max:5120',
+                    'max:' . self::IMAGE_MAX_KB,
                     'required_without:receipt_image_existing',
                 ],
                 'receipt_image_existing' => ['nullable', 'string'],
