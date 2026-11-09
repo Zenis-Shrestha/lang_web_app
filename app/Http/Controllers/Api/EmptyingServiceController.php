@@ -769,7 +769,7 @@ class EmptyingServiceController extends Controller
                     'input_type'  => 'file_upload',
                     'required'    => true,
                     // in rules: required on create, nullable on update → only encode file constraints here
-                    'validation'  => 'file|mimes:jpeg,jpg,png|max:5120',
+                    'validation'  => 'file|mimes:jpeg,jpg,png|max:' . EmptyingRequest::IMAGE_MAX_KB,
                     'placeholder' => __('House Image'),
                     'show_when'   => [
                         'field'       => 'trip_no',
@@ -782,7 +782,7 @@ class EmptyingServiceController extends Controller
                     'name'        => 'receipt_image',
                     'input_type'  => 'file_upload',
                     'required'    => true,
-                    'validation'  => 'file|mimes:jpeg,jpg,png|max:5120',
+                    'validation'  => 'file|mimes:jpeg,jpg,png|max:' . EmptyingRequest::IMAGE_MAX_KB,
                     'placeholder' => __('Receipt Image'),
                     'show_when'   => [
                         'field'       => 'trip_no',
@@ -1004,7 +1004,7 @@ class EmptyingServiceController extends Controller
                     'name'        => 'house_image',
                     'input_type'  => 'file_upload',
                     'required'    => true,
-                    'validation'  => 'file|mimes:jpeg,jpg,png|max:5120',
+                    'validation'  => 'file|mimes:jpeg,jpg,png|max:' . EmptyingRequest::IMAGE_MAX_KB,
                     'placeholder' => __('House Image'),
                     'show_when'   => [
                         'field'       => 'trip_no',
@@ -1017,7 +1017,7 @@ class EmptyingServiceController extends Controller
                     'name'        => 'receipt_image',
                     'input_type'  => 'file_upload',
                     'required'    => true,
-                    'validation'  => 'file|mimes:jpeg,jpg,png|max:5120',
+                    'validation'  => 'file|mimes:jpeg,jpg,png|max:' . EmptyingRequest::IMAGE_MAX_KB,
                     'placeholder' => __('Receipt Image'),
                     'show_when'   => [
                         'field'       => 'trip_no',
