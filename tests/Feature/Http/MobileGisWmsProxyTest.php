@@ -146,4 +146,77 @@ class MobileGisWmsProxyTest extends TestCase
 
         $response->assertOk()->assertHeader('X-RateLimit-Limit', 600);
     }
+
+    public function test_a_repeat_tile_is_served_from_the_cache(): void
+    {
+        $this->actingAsMobileUser();
+
+        $this->get($this->tileUrl())->assertOk()->assertHeader('X-Tile-Cache', 'MISS');
+        $second = $this->get($this->tileUrl());
+
+        $second->assertOk()
+            ->assertHeader('Content-Type', 'image/png')
+            ->assertHeader('X-Tile-Cache', 'HIT');
+        $this->assertSame('png-bytes', $second->getContent());
+        Http::assertSentCount(1);
+    }
+
+    public function test_parameter_order_does_not_change_the_cached_tile(): void
+    {
+        $this->actingAsMobileUser();
+
+        $this->get($this->tileUrl())->assertOk();
+        $reordered = '/api/gis/wms?BBOX=9499294,3201237,9505273,3207651&HEIGHT=512&WIDTH=512'
+            . '&CRS=EPSG:3857&STYLES=imis_base:buildings_layer_none&LAYERS=imis_base:buildings_layer'
+            . '&FORMAT=image/png&REQUEST=GetMap&VERSION=1.3.0&SERVICE=WMS';
+        $this->get($reordered)->assertOk()->assertHeader('X-Tile-Cache', 'HIT');
+
+        Http::assertSentCount(1);
+    }
+
+    public function test_a_different_tile_is_fetched_again(): void
+    {
+        $this->actingAsMobileUser();
+
+        $this->get($this->tileUrl())->assertOk();
+        $this->get($this->tileUrl(['BBOX' => '1,2,3,4']))->assertOk()->assertHeader('X-Tile-Cache', 'MISS');
+
+        Http::assertSentCount(2);
+    }
+
+    public function test_geoserver_errors_are_not_cached(): void
+    {
+        Http::swap(new \Illuminate\Http\Client\Factory());
+        Http::fake(['geoserver.test/*' => Http::sequence()
+            ->push('<ServiceExceptionReport/>', 200, ['Content-Type' => 'application/vnd.ogc.se_xml'])
+            ->push('', 500)
+            ->push('png-bytes', 200, ['Content-Type' => 'image/png'])]);
+        $this->actingAsMobileUser();
+
+        $this->get($this->tileUrl());
+        $this->get($this->tileUrl());
+        $this->get($this->tileUrl())->assertOk()->assertHeader('X-Tile-Cache', 'MISS');
+
+        Http::assertSentCount(3);
+    }
+
+    public function test_a_cached_tile_still_needs_a_token(): void
+    {
+        $this->actingAsMobileUser();
+        $this->get($this->tileUrl())->assertOk();
+
+        $this->app['auth']->forgetGuards();
+        $this->getJson($this->tileUrl())->assertUnauthorized();
+    }
+
+    public function test_the_cache_can_be_turned_off(): void
+    {
+        config(['gis.mobile_wms_cache_seconds' => 0]);
+        $this->actingAsMobileUser();
+
+        $this->get($this->tileUrl())->assertOk();
+        $this->get($this->tileUrl())->assertOk();
+
+        Http::assertSentCount(2);
+    }
 }

@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
 
 class GISProxyController extends Controller
@@ -47,7 +48,40 @@ class GISProxyController extends Controller
 
         // Forward the checked values, not the raw query, so a second spelling of a
         // parameter cannot reach GeoServer.
-        return $this->forward($params, '/wms', 60);
+        return $this->cachedTile($params);
+    }
+
+    /**
+     * Tiles are the same for every mobile user (the layer check above runs first),
+     * so a rendered PNG is kept for a few minutes and repeat views skip GeoServer.
+     * Only real images are cached, never GeoServer errors.
+     */
+    private function cachedTile(array $params)
+    {
+        $seconds = (int) config('gis.mobile_wms_cache_seconds');
+        if ($seconds <= 0) {
+            return $this->forward($params, '/wms', 60);
+        }
+
+        ksort($params);
+        $key = 'gis:mobile-wms:' . sha1(http_build_query($params));
+
+        $cached = Cache::get($key);
+        if (is_string($cached)) {
+            return response(base64_decode($cached), 200)
+                ->header('Content-Type', 'image/png')
+                ->header('Cache-Control', 'private, no-store')
+                ->header('X-Tile-Cache', 'HIT');
+        }
+
+        $response = $this->forward($params, '/wms', 60);
+        if ($response->getStatusCode() === 200
+            && str_starts_with((string) $response->headers->get('Content-Type'), 'image/png')) {
+            // base64 so binary data is safe in every cache store
+            Cache::put($key, base64_encode($response->getContent()), $seconds);
+        }
+
+        return $response->header('X-Tile-Cache', 'MISS');
     }
 
     public function wfs(Request $request)
