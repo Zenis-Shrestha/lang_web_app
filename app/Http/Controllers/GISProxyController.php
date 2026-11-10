@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
 
 class GISProxyController extends Controller
@@ -23,6 +24,64 @@ class GISProxyController extends Controller
         }
 
         return $this->forward($params, '/wms', 60);
+    }
+
+    /**
+     * Map tiles for the mobile app. Mobile roles do not hold the web map-layer
+     * permissions, so access is limited to the gis.mobile_wms_layers pairs.
+     * Only PNG images are returned, so no feature attributes reach the client.
+     */
+    public function mobileWms(Request $request)
+    {
+        $params = array_change_key_case($request->query(), CASE_UPPER);
+        abort_unless(strtoupper((string) ($params['SERVICE'] ?? '')) === 'WMS', 400, 'Invalid service.');
+        abort_unless(strtoupper((string) ($params['REQUEST'] ?? '')) === 'GETMAP', 403, 'WMS operation is not allowed.');
+        abort_unless(($params['FORMAT'] ?? '') === 'image/png', 403, 'WMS format is not allowed.');
+        abort_if(isset($params['SLD']) || isset($params['SLD_BODY']), 403, 'Custom styles are not allowed.');
+
+        $layers = array_map('trim', explode(',', (string) ($params['LAYERS'] ?? '')));
+        $styles = array_map('trim', explode(',', (string) ($params['STYLES'] ?? '')));
+        abort_unless(count($layers) === count($styles), 403, 'Layer is not allowed.');
+        foreach ($layers as $index => $layer) {
+            $this->authorizeMobileLayer($layer, $styles[$index]);
+        }
+
+        // Forward the checked values, not the raw query, so a second spelling of a
+        // parameter cannot reach GeoServer.
+        return $this->cachedTile($params);
+    }
+
+    /**
+     * Tiles are the same for every mobile user (the layer check above runs first),
+     * so a rendered PNG is kept for a few minutes and repeat views skip GeoServer.
+     * Only real images are cached, never GeoServer errors.
+     */
+    private function cachedTile(array $params)
+    {
+        $seconds = (int) config('gis.mobile_wms_cache_seconds');
+        if ($seconds <= 0) {
+            return $this->forward($params, '/wms', 60);
+        }
+
+        ksort($params);
+        $key = 'gis:mobile-wms:' . sha1(http_build_query($params));
+
+        $cached = Cache::get($key);
+        if (is_string($cached)) {
+            return response(base64_decode($cached), 200)
+                ->header('Content-Type', 'image/png')
+                ->header('Cache-Control', 'private, no-store')
+                ->header('X-Tile-Cache', 'HIT');
+        }
+
+        $response = $this->forward($params, '/wms', 60);
+        if ($response->getStatusCode() === 200
+            && str_starts_with((string) $response->headers->get('Content-Type'), 'image/png')) {
+            // base64 so binary data is safe in every cache store
+            Cache::put($key, base64_encode($response->getContent()), $seconds);
+        }
+
+        return $response->header('X-Tile-Cache', 'MISS');
     }
 
     public function wfs(Request $request)
@@ -49,6 +108,15 @@ class GISProxyController extends Controller
         }
         return $result->header('Content-Type', $response->header('Content-Type', 'application/octet-stream'))
             ->header('Cache-Control', 'private, no-store');
+    }
+
+    private function authorizeMobileLayer(string $layer, string $style): void
+    {
+        $workspace = config('services.geoserver.workspace');
+        $allowed = collect(config('gis.mobile_wms_layers'))->contains(
+            fn ($pair) => $layer === "$workspace:{$pair['layer']}" && $style === "$workspace:{$pair['style']}"
+        );
+        abort_unless($allowed, 403, 'Layer is not allowed.');
     }
 
     private function authorizeLayer(Request $request, string $qualifiedLayer): void

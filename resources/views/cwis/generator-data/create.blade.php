@@ -85,10 +85,10 @@
                                             <small id="policy-hint-{{ $index }}" class="d-block text-muted mt-1" data-policy-hint></small>
                                             <div data-evidence-fields hidden>
                                                 @if(!empty($savedEvidence[$policyKey]))
-                                                    <small class="d-block text-muted">{{ __('Existing Evidence') }}: {{ $savedEvidence[$policyKey] }}</small>
+                                                    @include('cwis.generator-data.equity-evidence', ['documentId' => $savedEvidence[$policyKey]->id, 'documentName' => $savedEvidence[$policyKey]->original_name])
                                                 @endif
                                                 <label for="evidence-{{ $index }}" class="font-weight-normal mt-2 mb-1">{{ __('Evidence') }}</label>
-                                                <input type="file" id="evidence-{{ $index }}" name="evidence[{{ $policyKey }}]" class="form-control-file" aria-describedby="evidence-hint-{{ $index }}" disabled>
+                                                <input type="file" id="evidence-{{ $index }}" name="evidence[{{ $policyKey }}]" class="form-control-file" accept="{{ \App\Support\CwisEvidence::UPLOAD_ACCEPT }}" aria-describedby="evidence-hint-{{ $index }}" disabled>
                                                 <small id="evidence-hint-{{ $index }}" class="d-block text-muted mt-1">{{ __($evidence) }}. {{ __('The document must support the selected answer.') }}</small>
                                                 @error('evidence.' . $policyKey)<div class="text-danger">{{ $message }}</div>@enderror
                                             </div>
@@ -113,6 +113,7 @@
     </form>
 </div>
 @stop
+@include('cwis.generator-data.retain-uploads')
 @push('scripts')
 <script>
     document.addEventListener('DOMContentLoaded', function () {

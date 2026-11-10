@@ -11,6 +11,9 @@ use Illuminate\Validation\Rule;
 
 class EmptyingRequest extends FormRequest
 {
+    // Largest house/receipt photo accepted, in KB (Laravel's file max unit)
+    public const IMAGE_MAX_KB = 20480;
+
     public function authorize(): bool
     {
         return true;
