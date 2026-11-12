@@ -4,6 +4,7 @@
 
 namespace App\Http\Controllers\Api;
 
+use App\Enums\EmptyingReason;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Fsm\EmptyingApiRequest;
 use App\Http\Requests\Fsm\EmptyingRequest;
@@ -611,11 +612,15 @@ class EmptyingServiceController extends Controller
                 [
                     'label'       => __('Reason for Emptying'),
                     'name'        => 'emptying_reason',
-                    'input_type'  => 'text',
+                    'input_type'  => 'select',
                     'value'       => $emptying->emptying_reason,
                     'disabled'    => true,
                     'prefilled'   => true,
                     'required'    => true,
+                    'options'     => array_map(
+                        static fn (string $reason): array => ['value' => $reason, 'label' => $reason],
+                        EmptyingReason::values()
+                    ),
                     'placeholder' => __('Reason for Emptying'),
                     // In rules(): required only in mid-trip branch; here it's prefilled/disabled
                 ],
@@ -643,7 +648,7 @@ class EmptyingServiceController extends Controller
                     'name'        => 'volume_of_sludge',
                     'input_type'  => 'number',
                     'required'    => true,
-                    'validation'  => 'required|numeric|min:0',
+                    'validation'  => 'required|numeric|gt:0',
                     'placeholder' => __('Sludge Volume (m³)'),
                 ],
 
@@ -874,9 +879,13 @@ class EmptyingServiceController extends Controller
                 [
                     'label'       => __('Reason for Emptying'),
                     'name'        => 'emptying_reason',
-                    'input_type'  => 'text',
+                    'input_type'  => 'select',
                     'required'    => true,
-                    'validation'  => 'required',
+                    'validation'  => 'required|in:' . implode(',', EmptyingReason::values()),
+                    'options'     => array_map(
+                        static fn (string $reason): array => ['value' => $reason, 'label' => $reason],
+                        EmptyingReason::values()
+                    ),
                     'placeholder' => __('Reason for Emptying'),
                 ],
                 [
@@ -903,7 +912,7 @@ class EmptyingServiceController extends Controller
                     'name'        => 'volume_of_sludge',
                     'input_type'  => 'number',
                     'required'    => true,
-                    'validation'  => 'required|numeric|min:0',
+                    'validation'  => 'required|numeric|gt:0',
                     'placeholder' => __('Sludge Volume (m³)'),
                 ],
 
@@ -1087,7 +1096,8 @@ class EmptyingServiceController extends Controller
  *                 @OA\Property(
  *                     property="emptying_reason",
  *                     type="string",
- *                     example="Overflowing containment"
+ *                     enum={"Routine Cleaning", "Overflow or Full"},
+ *                     example="Routine Cleaning"
  *                 ),
  *                 @OA\Property(
  *                     property="trip_count",
@@ -1217,4 +1227,3 @@ class EmptyingServiceController extends Controller
         }
     }
 }
-    

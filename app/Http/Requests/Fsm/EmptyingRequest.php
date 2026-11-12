@@ -4,8 +4,10 @@
 
 namespace App\Http\Requests\Fsm;
 
+use App\Enums\EmptyingReason;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\Rule;
 
 class EmptyingRequest extends FormRequest
 {
@@ -16,6 +18,7 @@ class EmptyingRequest extends FormRequest
     {
         return true;
     }
+
 
    
     public function rules(): array
@@ -51,7 +54,7 @@ class EmptyingRequest extends FormRequest
 
         $rules = [
             'application_id'           => ['required', 'integer', 'exists:fsm.applications,id'],
-            'emptying_reason'          => ['required'],
+            'emptying_reason'          => ['required', Rule::in(EmptyingReason::values())],
             'service_receiver_name'    => ['required'],
             'service_receiver_gender'  => ['required'],
             'service_receiver_contact' => ['required'],
@@ -119,16 +122,16 @@ class EmptyingRequest extends FormRequest
                 'house_image' => [
                     'nullable',
                     'file',
-                    'mimes:jpeg,jpg',
-                    'max:' . self::IMAGE_MAX_KB,
+                    'mimes:jpeg,jpg,png',
+                    'max:5120',
                     'required_without:house_image_existing',
                 ],
                 'house_image_existing'   => ['nullable', 'string'],
                 'receipt_image' => [
                     'nullable',
                     'file',
-                    'mimes:jpeg,jpg',
-                    'max:' . self::IMAGE_MAX_KB,
+                    'mimes:jpeg,jpg,png',
+                    'max:5120',
                     'required_without:receipt_image_existing',
                 ],
                 'receipt_image_existing' => ['nullable', 'string'],
@@ -152,6 +155,7 @@ class EmptyingRequest extends FormRequest
             'service_receiver_contact.required' => __('The Service Receiver Contact Number is required.'),
             'service_receiver_gender.required' => __('The Service Receiver Gender is required.'),
             'emptying_reason.required'         => __('The Reason for Emptying is required.'),
+            'emptying_reason.in'               => __('The selected Reason for Emptying is invalid.'),
             'trip_no.required'                 => __('The Current Trip No. is required.'),
             'trip_no.integer'                  => __('The Current Trip No. must be an integer.'),
             'trip_no.min'                      => __('The Current Trip No. must be at least 1.'),
