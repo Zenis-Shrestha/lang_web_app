@@ -92,7 +92,7 @@
         var kmlSource;
         var workspace = '<?php echo Config::get("constants.GEOSERVER_WORKSPACE"); ?>';
         // URL of GeoServer
-        var gurl = "{{ url('/gis/') }}";
+        var gurl = "{{ url('/gis') }}/";
         var gurl_wms = gurl + 'wms';
         var gurl_wfs = gurl + 'wfs';
         // URL of GeoServer Legends

@@ -1184,6 +1184,16 @@ class ApplicationService
                     }
                 }
 
+                if (Auth::user()->can('Proposed Emptying Date')) {
+                    $content .= '<a title="' . e(__('Emptying Scheduling Form')) . '" href="'
+                        . route("emptying-scheduling", [$model->id])
+                        . '" class="btn btn btn-info btn-sm mb-1 mb-1'
+                        . (($model->emptying_status == 1 || $model->emptying_status == 2)
+                            ? ' anchor-disabled'
+                            : '')
+                        . '"><i class="fa fa-calendar-plus"></i></a>';
+                }
+
                 if (Auth::user()->can('View Application History')) {
                     $content .= '<a title="' . e(__("History")) . '" href="' . route('application.history', $model->id) . '" class="btn btn btn-info btn-sm mb-1 mb-1"><i class="fa fa-history"></i></a> ';
                     if (Auth::user()->can('Delete Application')) {
